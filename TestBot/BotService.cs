@@ -244,6 +244,10 @@ namespace TelegramBot
                         await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
                         break;
 
+                    case "/uptime":
+                        await SendTextMessageNoReplyAsync(chatId, GetBotUptime());
+                        break;
+
                     case "/date":
                         await SendTextMessageNoReplyAsync(chatId, DateTime.UtcNow.ToString("u"));
                         break;
@@ -502,11 +506,13 @@ namespace TelegramBot
         private string GetBotUptime()
         {
             var uptime = DateTime.UtcNow - _botStartedDateUtc;
+            var proc = Process.GetCurrentProcess();
 
-            return "Maintenance message:\n" +
-                  $"TelegramBot v{GitVersionInformation.InformationalVersion}\n" +
-                  $"Memory allocated: {GetTotalAllocatedMemoryInMBytes():0.00} MB\n" +
-                  $"Bot uptime: {uptime.Days} day(s) {uptime.Hours:00}h:{uptime.Minutes:00}m:{uptime.Seconds:00}s";
+            return $"TelegramBot v{GitVersionInformation.InformationalVersion}\n" +
+                   $"Working set: {proc.WorkingSet64 / 1024 / (double)1024:0.00} Mbytes\n" +
+                   $"Peak working set: {proc.PeakWorkingSet64 / 1024 / (double)1024:0.00} Mbytes\n" +
+                   $"Total CPU time: {proc.TotalProcessorTime.TotalSeconds:0.00} sec\n" +
+                   $"Uptime: {uptime.Days} day(s) {uptime.Hours:00}h:{uptime.Minutes:00}m:{uptime.Seconds:00}s";
         }
 
         private string GetBotInfo()
@@ -516,6 +522,7 @@ namespace TelegramBot
                     "  /start - subscribe to receive messages from the bot;\n" +
                     "  /stop - stop receiving messages from the bot;\n" +
                     "  /help - display help info;\n" +
+                    "  /uptime - display service uptime info;\n" +
                     "  /date - show current date in UTC format;\n" +
                     "  /pic - receive random picture;\n" +
                     "  /corona - get current corona situation update;\n" +
