@@ -62,20 +62,17 @@ namespace TelegramBot
 
             _sqlite = new SQLiteDBAccess(_configuration.GetSection("DatabaseSettings:ConnectionStrings")["Default"]);
 
-            _gcTimer = new Timer();
-            _gcTimer.Interval = MIN_60_MSEC;
+            _gcTimer = new Timer(MIN_60_MSEC);
             _gcTimer.Elapsed += GarbageCollectEvent;
             _gcTimer.AutoReset = true;
             _gcTimer.Enabled = true;
 
-            _subscriptionTimer = new Timer();
-            _subscriptionTimer.Interval = CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt"));
+            _subscriptionTimer = new Timer(CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt")));
             _subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
             _subscriptionTimer.AutoReset = false;
             _subscriptionTimer.Enabled = true;
 
-            _maintenanceTimer = new Timer();
-            _maintenanceTimer.Interval = CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"));
+            _maintenanceTimer = new Timer(CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt")));
             _maintenanceTimer.Elapsed += MaintenanceEvent;
             _maintenanceTimer.AutoReset = false;
             _maintenanceTimer.Enabled = true;
@@ -121,7 +118,7 @@ namespace TelegramBot
         {
             _logger.LogDebug($"{nameof(SubscribedUsersNotifyEvent)} method called");
 
-            NotifyUsers(UserTypes.SubscribedUser);
+            NotifySubscribedUsers();
 
             _subscriptionTimer.Interval = CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt"));
             _subscriptionTimer.Enabled = true;
@@ -134,37 +131,46 @@ namespace TelegramBot
             _logger.LogInformation("Compacting db");
             _sqlite.DbCompact();
 
-            _logger.LogInformation("Sending app info to admin users");
-            NotifyUsers(UserTypes.IsAdministrator);
+            NotifyAdministrators();
 
             _maintenanceTimer.Interval = CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"));
             _maintenanceTimer.Enabled = true;
         }
 
-        private void NotifyUsers(UserTypes userType)
+        private void NotifySubscribedUsers()
         {
-            var users = userType switch
-            {
-                UserTypes.SubscribedUser => _sqlite.Select_TelegramUsersIsSubscribed(),
-                UserTypes.IsAdministrator => _sqlite.Select_TelegramUsersIsAdministrator(),
-                _ => new List<DB_TelegramUsers>()
-            };
+            var users = _sqlite.Select_TelegramUsersIsSubscribed();
 
-            var tasks = new List<Task>();
+            if (users.Count == 0)
+            {
+                _logger.LogInformation($"{nameof(NotifySubscribedUsers)} - No users to notify");
+                return;
+            }
+
+            _logger.LogInformation("Sending notifications to subscribed users");
 
             foreach (var user in users)
             {
-                var task = userType switch
-                {
-                    UserTypes.SubscribedUser => Task.Run(() => ExecuteCoronaCommand(user.ChatId)),
-                    UserTypes.IsAdministrator => Task.Run(() => SendTextMessageNoReplyAsync(user.ChatId, GetBotUptime(), true)),
-                    _ => new Task(() => { }) // empty task
-                };
+                Task.Run(async () => await ExecuteCoronaCommand(user.ChatId)).ConfigureAwait(false);
+            }
+        }
 
-                tasks.Add(task);
+        private void NotifyAdministrators()
+        {
+            var users = _sqlite.Select_TelegramUsersIsAdministrator();
+
+            if (users.Count == 0)
+            {
+                _logger.LogInformation($"{nameof(NotifyAdministrators)} - No users to notify");
+                return;
             }
 
-            Task.WaitAll(tasks.ToArray());
+            _logger.LogInformation("Sending app info to admin users");
+
+            foreach (var user in users)
+            {
+                Task.Run(async () => await SendTextMessageNoReplyAsync(user.ChatId, GetBotUptime(), true)).ConfigureAwait(false);
+            }
         }
 
         public void PrintBotInfo()
@@ -419,7 +425,7 @@ namespace TelegramBot
             }
             catch (Exception ex)
             {
-                throw ex;
+                _logger.LogError(ex, ex.Message);
             }
             finally
             {
