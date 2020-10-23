@@ -151,7 +151,7 @@ namespace TelegramBot
 
             foreach (var user in users)
             {
-                Task.Run(async () => await ExecuteCoronaCommand(user.ChatId)).ConfigureAwait(false);
+                Task.Run(async () => await ExecuteCoronaCommand(user.ChatId, true)).ConfigureAwait(false);
             }
         }
 
@@ -328,7 +328,7 @@ namespace TelegramBot
                 $"which amounts to a fuel cost of <b>{tripCost:0.00}</b> EUR");
         }
 
-        private async Task ExecuteCoronaCommand(long chatId)
+        private async Task ExecuteCoronaCommand(long chatId, bool forceDownload = false)
         {
             _logger.LogDebug($"{nameof(ExecuteCoronaCommand)} method called");
 
@@ -350,8 +350,8 @@ namespace TelegramBot
                 string timestamp = _sqlite.Select_CoronaCaseDistributionRecordsLastTimestamp();
                 var lastRecordDateUtc = (timestamp is object) ? DateTime.ParseExact(timestamp, "u", CultureInfo.InvariantCulture) : new DateTime();
 
-                // download date only if last download operation was done more than hour ago
-                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1)
+                // download data, if last download operation was done more than hour ago
+                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1 || forceDownload)
                 {
                     sw.Start();
                     var jsonObj = new CaseDistributionJson();
