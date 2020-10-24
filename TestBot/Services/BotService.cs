@@ -17,9 +17,10 @@ using Telegram.Bot;
 using Telegram.Bot.Args;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.InputFiles;
+using TelegramBot.Helpers;
 using TelegramBot.Models;
 
-namespace TelegramBot
+namespace TelegramBot.Service
 {
     public class BotService
     {
@@ -151,7 +152,7 @@ namespace TelegramBot
 
             foreach (var user in users)
             {
-                Task.Run(async () => await ExecuteCoronaCommand(user.ChatId, true)).ConfigureAwait(false);
+                Task.Run(async () => await ExecuteCoronaCommand(user.ChatId)).ConfigureAwait(false);
             }
         }
 
@@ -299,36 +300,22 @@ namespace TelegramBot
 
             string[] command = args.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-            double tripDistance;
-            double fuelEfficiency;
-            decimal fuelPriceLiter;
-
-            // parameters parsing
             try
             {
-                tripDistance = (command.Length >= 2) ? double.Parse(command[1]) : 100;
-                fuelEfficiency = (command.Length >= 3) ? double.Parse(command[2]) : 6.0;
-                fuelPriceLiter = (command.Length >= 4) ? decimal.Parse(command[3]) : 1.249M;
+                double tripDistance = (command.Length >= 2) ? double.Parse(command[1]) : 100;
+                double fuelEfficiency = (command.Length >= 3) ? double.Parse(command[2]) : 6.0;
+                decimal fuelPriceLiter = (command.Length >= 4) ? decimal.Parse(command[3]) : 1.249M;
+
+                var fuelCalculator = new FuelcostCalculator(tripDistance, fuelEfficiency, fuelPriceLiter);
+                await SendTextMessageNoReplyAsync(chatId, fuelCalculator.TripCostFormatted);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                await SendTextMessageNoReplyAsync(chatId, "Incorrect arguments provided");
-                return;
+                _logger.LogError(ex, ex.Message);
             }
-
-            // calculation part
-            double tripFuelUsed = (tripDistance / 100) * fuelEfficiency;
-            decimal tripCost = (decimal)tripFuelUsed * fuelPriceLiter;
-
-            await SendTextMessageNoReplyAsync(chatId,
-                $"<b>Distance:</b> {tripDistance:0.00} km\n" +
-                $"<b>Avg. fuel consumption:</b> {fuelEfficiency:0.00} l/100km\n" +
-                $"<b>Fuel cost:</b> {fuelPriceLiter:0.00} EUR/l\n" +
-                $"This trip will require <b>{tripFuelUsed:0.00}</b> liter(s) of fuel, " +
-                $"which amounts to a fuel cost of <b>{tripCost:0.00}</b> EUR");
         }
 
-        private async Task ExecuteCoronaCommand(long chatId, bool forceDownload = false)
+        private async Task ExecuteCoronaCommand(long chatId)
         {
             _logger.LogDebug($"{nameof(ExecuteCoronaCommand)} method called");
 
@@ -351,7 +338,7 @@ namespace TelegramBot
                 var lastRecordDateUtc = (timestamp is object) ? DateTime.ParseExact(timestamp, "u", CultureInfo.InvariantCulture) : new DateTime();
 
                 // download data, if last download operation was done more than hour ago
-                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1 || forceDownload)
+                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1)
                 {
                     sw.Start();
                     var jsonObj = new CaseDistributionJson();

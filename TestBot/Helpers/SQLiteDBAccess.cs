@@ -9,7 +9,7 @@ using System.Text;
 using Dapper;
 using TelegramBot.Models;
 
-namespace TelegramBot
+namespace TelegramBot.Helpers
 {
     public class SQLiteDBAccess
     {
