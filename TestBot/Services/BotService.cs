@@ -133,7 +133,7 @@ namespace TelegramBot.Service
             _logger.LogInformation("Compacting db");
             _sqlite.DbCompact();
 
-            NotifyAdministrators();
+            NotifyAdministrators(GetBotUptime(), true);
 
             _maintenanceTimer.Interval = CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"));
             _maintenanceTimer.Enabled = true;
@@ -160,7 +160,7 @@ namespace TelegramBot.Service
             }
         }
 
-        private void NotifyAdministrators()
+        private void NotifyAdministrators(string notificationMessage, bool notifySilently = false)
         {
             var users = _sqlite.Select_TelegramUsersIsAdministrator();
 
@@ -174,7 +174,7 @@ namespace TelegramBot.Service
 
             foreach (var user in users)
             {
-                Task.Run(async () => await SendTextMessageNoReplyAsync(user.ChatId, GetBotUptime(), true));
+                Task.Run(async () => await SendTextMessageNoReplyAsync(user.ChatId, notificationMessage, notifySilently));
             }
         }
 
@@ -190,13 +190,17 @@ namespace TelegramBot.Service
         public void StartReceiving()
         {
             _logger.LogDebug($"{nameof(StartReceiving)} method called");
+
             SubscribeEvents();
             _botClient.StartReceiving();
+            NotifyAdministrators($"'{_botClient.GetMeAsync().Result.FirstName}' started receiving at {DateTime.UtcNow:u}");
         }
 
         public void StopReceiving()
         {
             _logger.LogDebug($"{nameof(StopReceiving)} method called");
+
+            NotifyAdministrators($"'{_botClient.GetMeAsync().Result.FirstName}' stopped receiving at {DateTime.UtcNow:u}");
             UnSubscribeEvents();
             _botClient.StopReceiving();
         }
@@ -500,25 +504,25 @@ namespace TelegramBot.Service
             var uptime = DateTime.UtcNow - _botStartedDateUtc;
             var proc = Process.GetCurrentProcess();
 
-            return $"TelegramBot v{GitVersionInformation.InformationalVersion}\n" +
-                   $"Working set: {proc.WorkingSet64 / 1024 / (double)1024:0.00} Mbytes\n" +
-                   $"Peak working set: {proc.PeakWorkingSet64 / 1024 / (double)1024:0.00} Mbytes\n" +
-                   $"Total CPU time: {proc.TotalProcessorTime.TotalSeconds:0.00} sec\n" +
-                   $"Uptime: {uptime.Days} day(s) {uptime.Hours:00}h:{uptime.Minutes:00}m:{uptime.Seconds:00}s";
+            return $"TelegramBot <pre>v{GitVersionInformation.InformationalVersion}</pre>\n" +
+                   $"<b>Working set:</b> {proc.WorkingSet64 / 1024 / (double)1024:0.00} Mbytes\n" +
+                   $"<b>Peak working set:</b> {proc.PeakWorkingSet64 / 1024 / (double)1024:0.00} Mbytes\n" +
+                   $"<b>Total CPU time:</b> {proc.TotalProcessorTime.TotalSeconds:0.00} sec\n" +
+                   $"<b>Uptime:</b> {uptime.Days} day(s) {uptime.Hours:00}h:{uptime.Minutes:00}m:{uptime.Seconds:00}s";
         }
 
         private string GetBotInfo()
         {
             return $"TelegramBot v{GitVersionInformation.SemVer} made by @daniilshipilin.\n" +
-                    "This bot supports following commands:\n" +
-                    "  /start - subscribe to receive messages from the bot;\n" +
-                    "  /stop - stop receiving messages from the bot;\n" +
-                    "  /help - display help info;\n" +
-                    "  /uptime - display service uptime info;\n" +
-                    "  /date - show current date in UTC format;\n" +
-                    "  /pic - receive random picture;\n" +
-                    "  /corona - get current corona situation update;\n" +
-                    "  /fuelcost - fuel consumption calculator.";
+                   "This bot supports following commands:\n" +
+                   "  <b>/start</b> - subscribe to receive messages from the bot;\n" +
+                   "  <b>/stop</b> - stop receiving messages from the bot;\n" +
+                   "  <b>/help</b> - display help info;\n" +
+                   "  <b>/uptime</b> - display service uptime info;\n" +
+                   "  <b>/date</b> - show current date in UTC format;\n" +
+                   "  <b>/pic</b> - receive random picture;\n" +
+                   "  <b>/corona</b> - get current corona situation update;\n" +
+                   "  <b>/fuelcost</b> - fuel consumption calculator.";
         }
     }
 }
