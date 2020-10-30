@@ -35,6 +35,7 @@ namespace TelegramBot.Service
         readonly Timer _maintenanceTimer;
         readonly object _locker = new object();
         bool _commandIsExecuting;
+        bool _overrideCachedData;
         readonly SQLiteDBAccess _sqlite;
 
         readonly IConfiguration _configuration;
@@ -150,9 +151,12 @@ namespace TelegramBot.Service
 
             _logger.LogInformation("Sending notifications to subscribed users");
 
+            // make sure, that new data will be fetched during next ExecuteCoronaCommand call
+            _overrideCachedData = true;
+
             foreach (var user in users)
             {
-                Task.Run(async () => await ExecuteCoronaCommand(user.ChatId)).ConfigureAwait(false);
+                Task.Run(async () => await ExecuteCoronaCommand(user.ChatId));
             }
         }
 
@@ -170,7 +174,7 @@ namespace TelegramBot.Service
 
             foreach (var user in users)
             {
-                Task.Run(async () => await SendTextMessageNoReplyAsync(user.ChatId, GetBotUptime(), true)).ConfigureAwait(false);
+                Task.Run(async () => await SendTextMessageNoReplyAsync(user.ChatId, GetBotUptime(), true));
             }
         }
 
@@ -338,7 +342,7 @@ namespace TelegramBot.Service
                 var lastRecordDateUtc = (timestamp is object) ? DateTime.ParseExact(timestamp, "u", CultureInfo.InvariantCulture) : new DateTime();
 
                 // download data, if last download operation was done more than hour ago
-                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1)
+                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1 || _overrideCachedData)
                 {
                     sw.Start();
                     var jsonObj = new CaseDistributionJson();
@@ -420,6 +424,7 @@ namespace TelegramBot.Service
             }
             finally
             {
+                _overrideCachedData = false;
                 _commandIsExecuting = false;
             }
         }
