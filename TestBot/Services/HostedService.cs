@@ -38,11 +38,12 @@ namespace TelegramBot.Service
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Post-startup code goes here.
+        /// </summary>
         private void OnStarted()
         {
             _logger.LogDebug($"{nameof(OnStarted)} method called");
-
-            // Post-startup code goes here
 
             try
             {
@@ -56,11 +57,12 @@ namespace TelegramBot.Service
             }
         }
 
+        /// <summary>
+        /// On-stopping code goes here
+        /// </summary>
         private void OnStopping()
         {
             _logger.LogDebug($"{nameof(OnStopping)} method called");
-
-            // On-stopping code goes here
 
             try
             {
@@ -72,11 +74,12 @@ namespace TelegramBot.Service
             }
         }
 
+        /// <summary>
+        /// Post-stopped code goes here.
+        /// </summary>
         private void OnStopped()
         {
             _logger.LogDebug($"{nameof(OnStopped)} method called");
-
-            // Post-stopped code goes here
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
