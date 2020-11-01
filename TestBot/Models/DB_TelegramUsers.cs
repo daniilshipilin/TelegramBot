@@ -11,8 +11,8 @@ namespace TelegramBot.Models
         public string LastName { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;
         public string DateRegisteredUtc { get; set; } = DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture);
-        public string UserIsSubscribed { get; set; } = true.ToString();
-        public string UserIsAdmin { get; set; } = false.ToString();
+        public bool UserIsSubscribed { get; set; } = true;
+        public bool UserIsAdmin { get; set; } = false;
 
         public DB_TelegramUsers()
         {

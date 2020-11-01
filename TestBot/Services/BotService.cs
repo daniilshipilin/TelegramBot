@@ -225,25 +225,31 @@ namespace TelegramBot.Service
                             if (user is null)
                             {
                                 var newUser = new DB_TelegramUsers(chatId, e.Message.Chat.FirstName, e.Message.Chat.LastName, e.Message.Chat.Username);
+
+                                // check if new user must have admin option set to true
+                                if (_sqlite.LastIndex_TelegramUsers() is null &&
+                                    _configuration.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights"))
+                                {
+                                    newUser.UserIsAdmin = true;
+                                }
+
                                 _sqlite.Insert_TelegramUsers(newUser);
                                 _logger.LogInformation($"User {newUser.ChatId} added to the db");
+                                await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed");
                             }
-                            else
-                            {
-                                await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
-                            }
+
+                            await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
                         }
                         break;
 
                     case "/stop":
                         {
-                            var existingUser = _sqlite.Select_TelegramUsers(chatId);
+                            var user = _sqlite.Select_TelegramUsers(chatId);
 
-                            if (existingUser is object)
+                            if (user is object)
                             {
-                                existingUser.UserIsSubscribed = false.ToString();
-                                _sqlite.Update_TelegramUsers(existingUser);
-                                _logger.LogInformation($"{existingUser.ChatId} user removed from the db");
+                                _sqlite.Delete_TelegramUsers(user);
+                                _logger.LogInformation($"{user.ChatId} user removed from the db");
                                 await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed");
                             }
                         }
