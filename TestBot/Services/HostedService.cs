@@ -1,39 +1,47 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace TelegramBot.Service
+namespace TelegramBot.TestBot.Service
 {
+    using System;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Logging;
+
     public class HostedService : IHostedService
     {
-        BotService? _botService;
+        private readonly IConfiguration configuration;
+        private readonly IHostEnvironment environment;
+        private readonly ILogger<HostedService> logger;
+        private readonly IHostApplicationLifetime appLifetime;
 
-        readonly IConfiguration _configuration;
-        readonly IHostEnvironment _environment;
-        readonly ILogger<HostedService> _logger;
-        readonly IHostApplicationLifetime _lifetime;
+        private BotService? botService;
 
-        public HostedService(IConfiguration configuration,
-                             IHostEnvironment environment,
-                             ILogger<HostedService> logger,
-                             IHostApplicationLifetime appLifetime)
+        public HostedService(
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            ILogger<HostedService> logger,
+            IHostApplicationLifetime appLifetime)
         {
-            _configuration = configuration;
-            _environment = environment;
-            _logger = logger;
-            _lifetime = appLifetime;
+            this.configuration = configuration;
+            this.environment = environment;
+            this.logger = logger;
+            this.appLifetime = appLifetime;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _logger.LogDebug($"{nameof(StartAsync)} method called");
+            logger.LogDebug($"{nameof(StartAsync)} method called");
 
-            _lifetime.ApplicationStarted.Register(OnStarted);
-            _lifetime.ApplicationStopping.Register(OnStopping);
-            _lifetime.ApplicationStopped.Register(OnStopped);
+            appLifetime.ApplicationStarted.Register(OnStarted);
+            appLifetime.ApplicationStopping.Register(OnStopping);
+            appLifetime.ApplicationStopped.Register(OnStopped);
+
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            logger.LogDebug($"{nameof(StopAsync)} method called");
 
             return Task.CompletedTask;
         }
@@ -43,34 +51,34 @@ namespace TelegramBot.Service
         /// </summary>
         private void OnStarted()
         {
-            _logger.LogDebug($"{nameof(OnStarted)} method called");
+            logger.LogDebug($"{nameof(OnStarted)} method called");
 
             try
             {
-                _botService = new BotService(_configuration, _logger);
-                _botService.PrintBotInfo();
-                _botService.StartReceiving();
+                botService = new BotService(configuration, logger);
+                botService.PrintBotInfo();
+                botService.StartReceiving();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, ex.Message);
+                logger.LogError(ex, ex.Message);
             }
         }
 
         /// <summary>
-        /// On-stopping code goes here
+        /// On-stopping code goes here.
         /// </summary>
         private void OnStopping()
         {
-            _logger.LogDebug($"{nameof(OnStopping)} method called");
+            logger.LogDebug($"{nameof(OnStopping)} method called");
 
             try
             {
-                _botService?.StopReceiving();
+                botService?.StopReceiving();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, ex.Message);
+                logger.LogError(ex, ex.Message);
             }
         }
 
@@ -79,14 +87,7 @@ namespace TelegramBot.Service
         /// </summary>
         private void OnStopped()
         {
-            _logger.LogDebug($"{nameof(OnStopped)} method called");
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogDebug($"{nameof(StopAsync)} method called");
-
-            return Task.CompletedTask;
+            logger.LogDebug($"{nameof(OnStopped)} method called");
         }
     }
 }

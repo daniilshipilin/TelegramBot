@@ -1,16 +1,16 @@
-using System.IO;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Serilog;
-using TelegramBot.Service;
-
-namespace TelegramBot
+namespace TelegramBot.TestBot
 {
+    using System.IO;
+    using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Logging;
+    using Serilog;
+    using TelegramBot.TestBot.Service;
+
     public class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             IHost host = new HostBuilder()
                  .ConfigureHostConfiguration(configHost =>
@@ -26,8 +26,6 @@ namespace TelegramBot
                      configApp.AddJsonFile($"appsettings.json", optional: false, reloadOnChange: true);
                      configApp.AddJsonFile($"appsettings.dev.json", optional: true, reloadOnChange: true);
                      configApp.AddJsonFile($"appsettings.prod.json", optional: true, reloadOnChange: true);
-                     //configApp.AddJsonFile($"appsettings.{hostContext.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true);
-                     //configApp.AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ENVIRONMENT") ?? "Production"}.json", optional: true, reloadOnChange: true);
                      configApp.AddCommandLine(args);
                  })
                 .ConfigureServices((hostContext, services) =>

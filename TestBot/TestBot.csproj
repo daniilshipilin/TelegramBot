@@ -6,7 +6,7 @@
         <ApplicationIcon>Images\bot.ico</ApplicationIcon>
         <AssemblyName>TelegramBot</AssemblyName>
         <LangVersion>latest</LangVersion>
-        <RootNamespace>TelegramBot</RootNamespace>
+        <RootNamespace>TelegramBot.TestBot</RootNamespace>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
@@ -22,11 +22,15 @@
 
     <ItemGroup>
         <PackageReference Include="Dapper" Version="2.0.35" />
-        <PackageReference Include="GitVersionTask" Version="5.3.7">
-          <PrivateAssets>all</PrivateAssets>
-          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        <PackageReference Include="GitVersionTask" Version="5.5.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.1" />
+        <PackageReference Include="StyleCop.Analyzers" Version="1.1.118">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.5" />
         <PackageReference Include="Telegram.Bot" Version="15.7.1" />
         <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="3.1.9" />
         <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="3.1.9" />

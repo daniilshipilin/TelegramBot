@@ -1,83 +1,110 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Timers;
-using Telegram.Bot;
-using Telegram.Bot.Args;
-using Telegram.Bot.Types.Enums;
-using Telegram.Bot.Types.InputFiles;
-using TelegramBot.Helpers;
-using TelegramBot.Models;
-
-namespace TelegramBot.Service
+namespace TelegramBot.TestBot.Service
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Globalization;
+    using System.IO;
+    using System.Linq;
+    using System.Net.Http;
+    using System.Net.Http.Headers;
+    using System.Text;
+    using System.Text.RegularExpressions;
+    using System.Threading.Tasks;
+    using System.Timers;
+    using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.Logging;
+    using Newtonsoft.Json;
+    using Telegram.Bot;
+    using Telegram.Bot.Args;
+    using Telegram.Bot.Types.Enums;
+    using Telegram.Bot.Types.InputFiles;
+    using TelegramBot.TestBot.Helpers;
+    using TelegramBot.TestBot.Models;
+
     public class BotService
     {
-        const int MIN_60_MSEC = 3600000;
+        private const int Min60Msec = 3600000;
 
-        readonly DateTime _botStartedDateUtc;
-        readonly Random _rnd;
-        readonly ITelegramBotClient _botClient;
-        readonly HttpClient _httpClient;
-        readonly Timer _gcTimer;
-        readonly Timer _subscriptionTimer;
-        readonly Timer _maintenanceTimer;
-        readonly object _locker = new object();
-        bool _commandIsExecuting;
-        bool _overrideCachedData;
-        readonly SQLiteDBAccess _sqlite;
+        private readonly DateTime botStartedDateUtc;
+        private readonly Random random;
+        private readonly ITelegramBotClient botClient;
+        private readonly HttpClient httpClient;
+        private readonly Timer gcTimer;
+        private readonly Timer subscriptionTimer;
+        private readonly Timer maintenanceTimer;
+        private readonly object locker = new object();
+        private readonly SQLiteDBAccess sqlite;
+        private readonly IConfiguration configuration;
+        private readonly ILogger<HostedService> logger;
 
-        readonly IConfiguration _configuration;
-        readonly ILogger<HostedService> _logger;
+        private bool commandIsExecuting;
+        private bool overrideCachedData;
 
         public BotService(IConfiguration configuration, ILogger<HostedService> logger)
         {
-            _configuration = configuration;
-            _logger = logger;
-            _botStartedDateUtc = DateTime.UtcNow;
-            _rnd = new Random();
+            this.configuration = configuration;
+            this.logger = logger;
+            botStartedDateUtc = DateTime.UtcNow;
+            random = new Random();
 
-            _botClient = new TelegramBotClient(_configuration.GetValue<string>("ApplicationSettings:TelegramBotToken"))
+            botClient = new TelegramBotClient(this.configuration.GetValue<string>("ApplicationSettings:TelegramBotToken"))
             {
-                Timeout = new TimeSpan(0, 0, 60)
+                Timeout = new TimeSpan(0, 0, 60),
             };
 
-            _httpClient = new HttpClient()
+            httpClient = new HttpClient()
             {
-                BaseAddress = new Uri(_configuration.GetValue<string>("ApplicationSettings:CoronaApiBaseUrl")),
-                Timeout = new TimeSpan(0, 0, 60)
+                BaseAddress = new Uri(this.configuration.GetValue<string>("ApplicationSettings:CoronaApiBaseUrl")),
+                Timeout = new TimeSpan(0, 0, 60),
             };
 
-            _httpClient.DefaultRequestHeaders.Accept.Clear();
-            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            httpClient.DefaultRequestHeaders.Accept.Clear();
+            httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            _sqlite = new SQLiteDBAccess(_configuration.GetSection("DatabaseSettings:ConnectionStrings")["Default"]);
+            sqlite = new SQLiteDBAccess(this.configuration.GetSection("DatabaseSettings:ConnectionStrings")["Default"]);
 
-            _gcTimer = new Timer(MIN_60_MSEC);
-            _gcTimer.Elapsed += GarbageCollectEvent;
-            _gcTimer.AutoReset = true;
-            _gcTimer.Enabled = true;
+            gcTimer = new Timer(Min60Msec);
+            gcTimer.Elapsed += GarbageCollectEvent;
+            gcTimer.AutoReset = true;
+            gcTimer.Enabled = true;
 
-            _subscriptionTimer = new Timer(CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt")));
-            _subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
-            _subscriptionTimer.AutoReset = false;
-            _subscriptionTimer.Enabled = true;
+            subscriptionTimer = new Timer(CalculateTimerInterval(this.configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt")));
+            subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
+            subscriptionTimer.AutoReset = false;
+            subscriptionTimer.Enabled = true;
 
-            _maintenanceTimer = new Timer(CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt")));
-            _maintenanceTimer.Elapsed += MaintenanceEvent;
-            _maintenanceTimer.AutoReset = false;
-            _maintenanceTimer.Enabled = true;
+            maintenanceTimer = new Timer(CalculateTimerInterval(this.configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt")));
+            maintenanceTimer.Elapsed += MaintenanceEvent;
+            maintenanceTimer.AutoReset = false;
+            maintenanceTimer.Enabled = true;
+        }
+
+        public void PrintBotInfo()
+        {
+            var botInfo = botClient.GetMeAsync().Result;
+            logger.LogInformation($"TelegramBot v{GitVersionInformation.InformationalVersion}");
+            logger.LogInformation($"Id: {botInfo.Id}\tName: '{botInfo.FirstName}'\tUsername: '{botInfo.Username}'");
+            int users = sqlite.Count_TelegramUsers();
+            logger.LogInformation($"{users} user(s) found in db");
+        }
+
+        public void StartReceiving()
+        {
+            logger.LogDebug($"{nameof(StartReceiving)} method called");
+
+            SubscribeEvents();
+            botClient.StartReceiving();
+            NotifyAdministrators($"'{botClient.GetMeAsync().Result.FirstName}' started receiving at {DateTime.UtcNow:u}");
+        }
+
+        public void StopReceiving()
+        {
+            logger.LogDebug($"{nameof(StopReceiving)} method called");
+
+            NotifyAdministrators($"'{botClient.GetMeAsync().Result.FirstName}' stopped receiving at {DateTime.UtcNow:u}");
+            UnSubscribeEvents();
+            botClient.StopReceiving();
         }
 
         private double CalculateTimerInterval(string triggerAtTime)
@@ -95,64 +122,64 @@ namespace TelegramBot.Service
 
         private void SubscribeEvents()
         {
-            _botClient.OnMessage += OnMessageEvent;
-            _botClient.OnMessageEdited += OnMessageEditedEvent;
-            _botClient.OnUpdate += OnUpdateEvent;
-            _botClient.OnReceiveError += OnReceiveErrorEvent;
+            botClient.OnMessage += OnMessageEvent;
+            botClient.OnMessageEdited += OnMessageEditedEvent;
+            botClient.OnUpdate += OnUpdateEvent;
+            botClient.OnReceiveError += OnReceiveErrorEvent;
         }
 
         private void UnSubscribeEvents()
         {
-            _botClient.OnMessage -= OnMessageEvent;
-            _botClient.OnMessageEdited -= OnMessageEditedEvent;
-            _botClient.OnUpdate -= OnUpdateEvent;
-            _botClient.OnReceiveError -= OnReceiveErrorEvent;
+            botClient.OnMessage -= OnMessageEvent;
+            botClient.OnMessageEdited -= OnMessageEditedEvent;
+            botClient.OnUpdate -= OnUpdateEvent;
+            botClient.OnReceiveError -= OnReceiveErrorEvent;
         }
 
         private void GarbageCollectEvent(object sender, ElapsedEventArgs e)
         {
-            _logger.LogDebug($"{nameof(GarbageCollectEvent)} method called");
+            logger.LogDebug($"{nameof(GarbageCollectEvent)} method called");
 
             GC.Collect();
         }
 
         private void SubscribedUsersNotifyEvent(object sender, ElapsedEventArgs e)
         {
-            _logger.LogDebug($"{nameof(SubscribedUsersNotifyEvent)} method called");
+            logger.LogDebug($"{nameof(SubscribedUsersNotifyEvent)} method called");
 
             NotifySubscribedUsers();
 
-            _subscriptionTimer.Interval = CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt"));
-            _subscriptionTimer.Enabled = true;
+            subscriptionTimer.Interval = CalculateTimerInterval(configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt"));
+            subscriptionTimer.Enabled = true;
         }
 
         private void MaintenanceEvent(object sender, ElapsedEventArgs e)
         {
-            _logger.LogDebug($"{nameof(MaintenanceEvent)} method called");
+            logger.LogDebug($"{nameof(MaintenanceEvent)} method called");
 
-            _logger.LogInformation("Compacting db");
-            _sqlite.DbCompact();
+            logger.LogInformation("Compacting db");
+            sqlite.DbCompact();
 
             NotifyAdministrators(GetBotUptime(), true);
 
-            _maintenanceTimer.Interval = CalculateTimerInterval(_configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"));
-            _maintenanceTimer.Enabled = true;
+            maintenanceTimer.Interval = CalculateTimerInterval(configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"));
+            maintenanceTimer.Enabled = true;
         }
 
         private void NotifySubscribedUsers()
         {
-            var users = _sqlite.Select_TelegramUsersIsSubscribed();
+            var users = sqlite.Select_TelegramUsersIsSubscribed();
 
             if (users.Count == 0)
             {
-                _logger.LogInformation($"{nameof(NotifySubscribedUsers)} - No users to notify");
+                logger.LogInformation($"{nameof(NotifySubscribedUsers)} - No users to notify");
                 return;
             }
 
-            _logger.LogInformation("Sending notifications to subscribed users");
+            logger.LogInformation("Sending notifications to subscribed users");
 
             // make sure, that new data will be fetched during next ExecuteCoronaCommand call
-            _overrideCachedData = true;
+            overrideCachedData = true;
 
             foreach (var user in users)
             {
@@ -162,15 +189,15 @@ namespace TelegramBot.Service
 
         private void NotifyAdministrators(string notificationMessage, bool notifySilently = false)
         {
-            var users = _sqlite.Select_TelegramUsersIsAdministrator();
+            var users = sqlite.Select_TelegramUsersIsAdministrator();
 
             if (users.Count == 0)
             {
-                _logger.LogInformation($"{nameof(NotifyAdministrators)} - No users to notify");
+                logger.LogInformation($"{nameof(NotifyAdministrators)} - No users to notify");
                 return;
             }
 
-            _logger.LogInformation("Sending app info to admin users");
+            logger.LogInformation("Sending app info to admin users");
 
             foreach (var user in users)
             {
@@ -178,37 +205,10 @@ namespace TelegramBot.Service
             }
         }
 
-        public void PrintBotInfo()
-        {
-            var botInfo = _botClient.GetMeAsync().Result;
-            _logger.LogInformation($"TelegramBot v{GitVersionInformation.InformationalVersion}");
-            _logger.LogInformation($"Id: {botInfo.Id}\tName: '{botInfo.FirstName}'\tUsername: '{botInfo.Username}'");
-            int users = _sqlite.Count_TelegramUsers();
-            _logger.LogInformation($"{users} user(s) found in db");
-        }
-
-        public void StartReceiving()
-        {
-            _logger.LogDebug($"{nameof(StartReceiving)} method called");
-
-            SubscribeEvents();
-            _botClient.StartReceiving();
-            NotifyAdministrators($"'{_botClient.GetMeAsync().Result.FirstName}' started receiving at {DateTime.UtcNow:u}");
-        }
-
-        public void StopReceiving()
-        {
-            _logger.LogDebug($"{nameof(StopReceiving)} method called");
-
-            NotifyAdministrators($"'{_botClient.GetMeAsync().Result.FirstName}' stopped receiving at {DateTime.UtcNow:u}");
-            UnSubscribeEvents();
-            _botClient.StopReceiving();
-        }
-
         private async void OnMessageEvent(object? sender, MessageEventArgs e)
         {
-            _logger.LogDebug($"{nameof(OnMessageEvent)} method called");
-            _logger.LogInformation($"Received a text message from user '{e.Message.From.Username}'  type: {e.Message.Type}  message: '{e.Message.Text}'");
+            logger.LogDebug($"{nameof(OnMessageEvent)} method called");
+            logger.LogInformation($"Received a text message from user '{e.Message.From.Username}'  type: {e.Message.Type}  message: '{e.Message.Text}'");
 
             long chatId = e.Message.Chat.Id;
 
@@ -220,39 +220,41 @@ namespace TelegramBot.Service
                     case "/start":
                         {
                             await SendTextMessageNoReplyAsync(chatId, $"Hi, {e.Message.From.FirstName} {e.Message.From.LastName} (user: '{e.Message.From.Username}').");
-                            var user = _sqlite.Select_TelegramUsers(chatId);
+                            var user = sqlite.Select_TelegramUsers(chatId);
 
                             if (user is null)
                             {
                                 var newUser = new DB_TelegramUsers(chatId, e.Message.Chat.FirstName, e.Message.Chat.LastName, e.Message.Chat.Username);
 
                                 // check if new user must have admin option set to true
-                                if (_sqlite.LastIndex_TelegramUsers() is null &&
-                                    _configuration.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights"))
+                                if (sqlite.LastIndex_TelegramUsers() is null &&
+                                    configuration.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights"))
                                 {
                                     newUser.UserIsAdmin = true;
                                 }
 
-                                _sqlite.Insert_TelegramUsers(newUser);
-                                _logger.LogInformation($"User {newUser.ChatId} added to the db");
+                                sqlite.Insert_TelegramUsers(newUser);
+                                logger.LogInformation($"User {newUser.ChatId} added to the db");
                                 await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed");
                             }
 
                             await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
                         }
+
                         break;
 
                     case "/stop":
                         {
-                            var user = _sqlite.Select_TelegramUsers(chatId);
+                            var user = sqlite.Select_TelegramUsers(chatId);
 
                             if (user is object)
                             {
-                                _sqlite.Delete_TelegramUsers(user);
-                                _logger.LogInformation($"{user.ChatId} user removed from the db");
+                                sqlite.Delete_TelegramUsers(user);
+                                logger.LogInformation($"{user.ChatId} user removed from the db");
                                 await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed");
                             }
                         }
+
                         break;
 
                     case "/help":
@@ -281,36 +283,38 @@ namespace TelegramBot.Service
                         break;
 
                     default:
-                        await SendTextMessageAsync(chatId, e.Message.MessageId, "Unknown command detected.\n" +
-                                                      "Type in /help to display help info");
+                        await SendTextMessageAsync(
+                            chatId,
+                            e.Message.MessageId,
+                            "Unknown command detected.\nType in /help to display help info");
                         break;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, ex.Message);
+                logger.LogError(ex, ex.Message);
             }
         }
 
         private void OnMessageEditedEvent(object? sender, MessageEventArgs e)
         {
-            _logger.LogDebug($"{nameof(OnMessageEditedEvent)} method called");
+            logger.LogDebug($"{nameof(OnMessageEditedEvent)} method called");
             OnMessageEvent(sender, e);
         }
 
         private void OnUpdateEvent(object? sender, UpdateEventArgs e)
         {
-            _logger.LogDebug($"{nameof(OnUpdateEvent)} method called");
+            logger.LogDebug($"{nameof(OnUpdateEvent)} method called");
         }
 
         private void OnReceiveErrorEvent(object? sender, ReceiveErrorEventArgs e)
         {
-            _logger.LogDebug($"{nameof(OnReceiveErrorEvent)} method called");
+            logger.LogDebug($"{nameof(OnReceiveErrorEvent)} method called");
         }
 
         private async Task ExecuteFuelcostCommand(long chatId, string args)
         {
-            _logger.LogDebug($"{nameof(ExecuteFuelcostCommand)} method called");
+            logger.LogDebug($"{nameof(ExecuteFuelcostCommand)} method called");
 
             string[] command = args.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
@@ -325,38 +329,38 @@ namespace TelegramBot.Service
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, ex.Message);
+                logger.LogError(ex, ex.Message);
             }
         }
 
         private async Task ExecuteCoronaCommand(long chatId)
         {
-            _logger.LogDebug($"{nameof(ExecuteCoronaCommand)} method called");
+            logger.LogDebug($"{nameof(ExecuteCoronaCommand)} method called");
 
-            lock (_locker)
+            lock (locker)
             {
                 // wait till previous method call is executed
-                while (_commandIsExecuting)
+                while (commandIsExecuting)
                 {
                     Task.Delay(100).Wait();
                 }
 
-                _commandIsExecuting = true;
+                commandIsExecuting = true;
             }
 
             try
             {
                 var sw = new Stopwatch();
                 DB_CoronaCaseDistributionRecords? dbRecord = null;
-                string timestamp = _sqlite.Select_CoronaCaseDistributionRecordsLastTimestamp();
-                var lastRecordDateUtc = (timestamp is object) ? DateTime.ParseExact(timestamp, "u", CultureInfo.InvariantCulture) : new DateTime();
+                string timestamp = sqlite.Select_CoronaCaseDistributionRecordsLastTimestamp();
+                var lastRecordDateUtc = (timestamp is object) ? DateTime.ParseExact(timestamp, "u", CultureInfo.InvariantCulture) : new DateTime(1, 1, 1);
 
                 // download data, if last download operation was done more than hour ago
-                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1 || _overrideCachedData)
+                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1 || overrideCachedData)
                 {
                     sw.Start();
                     var jsonObj = new CaseDistributionJson();
-                    using var response = await _httpClient.GetAsync("json");
+                    using var response = await httpClient.GetAsync("json");
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -367,12 +371,12 @@ namespace TelegramBot.Service
                         var errors = new List<string>();
                         var settings = new JsonSerializerSettings()
                         {
-                            Error = delegate (object? sender, Newtonsoft.Json.Serialization.ErrorEventArgs args)
+                            Error = (sender, args) =>
                             {
                                 // put registered errors in created string list
                                 errors.Add(args.ErrorContext.Error.Message);
                                 args.ErrorContext.Handled = true;
-                            }
+                            },
                         };
 
                         // deserialize received json
@@ -419,31 +423,31 @@ namespace TelegramBot.Service
                     sb.AppendLine($"{caseDistributionRecords.Count} record(s) in total.");
 
                     dbRecord = new DB_CoronaCaseDistributionRecords(sb.ToString());
-                    _sqlite.Insert_CoronaCaseDistributionRecords(dbRecord);
+                    sqlite.Insert_CoronaCaseDistributionRecords(dbRecord);
                 }
                 else
                 {
-                    dbRecord = _sqlite.Select_CoronaCaseDistributionRecords();
+                    dbRecord = sqlite.Select_CoronaCaseDistributionRecords();
                 }
 
-                await SendTextMessageNoReplyAsync(chatId, dbRecord.CaseDistributionRecords + $"Data collected on {dbRecord.DateCollectedUtc} ({(sw.ElapsedMilliseconds / (double)1000):0.00} sec.)");
+                await SendTextMessageNoReplyAsync(chatId, dbRecord.CaseDistributionRecords + $"Data collected on {dbRecord.DateCollectedUtc} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, ex.Message);
+                logger.LogError(ex, ex.Message);
             }
             finally
             {
-                _overrideCachedData = false;
-                _commandIsExecuting = false;
+                overrideCachedData = false;
+                commandIsExecuting = false;
             }
         }
 
         private async Task ExecutePictureCommand(long chatId)
         {
-            _logger.LogDebug($"{nameof(ExecutePictureCommand)} method called");
+            logger.LogDebug($"{nameof(ExecutePictureCommand)} method called");
 
-            string picsDir = Path.GetFullPath(_configuration.GetValue<string>("ApplicationSettings:PicsDirectory"));
+            string picsDir = Path.GetFullPath(configuration.GetValue<string>("ApplicationSettings:PicsDirectory"));
             var pics = GetFiles(picsDir, @"\.jpg|\.jpeg|\.png|\.bmp", SearchOption.AllDirectories).ToList();
 
             if (pics.Count == 0)
@@ -451,7 +455,7 @@ namespace TelegramBot.Service
                 throw new Exception($"'{picsDir}' directory has no images");
             }
 
-            int index = _rnd.Next(pics.Count);
+            int index = random.Next(pics.Count);
             await SendFileAsync(chatId, pics[index]);
         }
 
@@ -464,27 +468,27 @@ namespace TelegramBot.Service
 
         private async Task SendTextMessageAsync(long chatId, int messageId, string message)
         {
-            var msg = await _botClient.SendTextMessageAsync(
+            var msg = await botClient.SendTextMessageAsync(
                     chatId: chatId,
                     text: message,
                     parseMode: ParseMode.Html,
                     disableNotification: false,
                     replyToMessageId: messageId);
 
-            _logger.LogInformation($"{msg.From.FirstName} sent message {msg.MessageId} " +
+            logger.LogInformation($"{msg.From.FirstName} sent message {msg.MessageId} " +
                 $"to chat {msg.Chat.Id} at {msg.Date.ToUniversalTime():u}. " +
                 $"It is a reply to message {msg.ReplyToMessage.MessageId}.");
         }
 
         private async Task SendTextMessageNoReplyAsync(long chatId, string message, bool sendMessageSilently = false)
         {
-            var msg = await _botClient.SendTextMessageAsync(
+            var msg = await botClient.SendTextMessageAsync(
                     chatId: chatId,
                     text: message,
                     parseMode: ParseMode.Html,
                     disableNotification: sendMessageSilently);
 
-            _logger.LogInformation($"{msg.From.FirstName} sent message {msg.MessageId} " +
+            logger.LogInformation($"{msg.From.FirstName} sent message {msg.MessageId} " +
                 $"to chat {msg.Chat.Id} at {msg.Date.ToUniversalTime():u}.");
         }
 
@@ -493,26 +497,26 @@ namespace TelegramBot.Service
             string fileName = Path.GetFileName(filePath);
             using var sr = File.Open(filePath, FileMode.Open);
             var doc = new InputOnlineFile(sr, fileName);
-            var task = (sendAsPhoto) ? await _botClient.SendPhotoAsync(chatId, doc, fileName)
-                                     : await _botClient.SendDocumentAsync(chatId, doc);
-            _logger.LogInformation($"'{fileName}' file sent.");
+            var task = sendAsPhoto ? await botClient.SendPhotoAsync(chatId, doc, fileName)
+                                   : await botClient.SendDocumentAsync(chatId, doc);
+            logger.LogInformation($"'{fileName}' file sent.");
         }
 
         private double GetTotalAllocatedMemoryInMBytes()
         {
             using var p = Process.GetCurrentProcess();
 
-            return p.PrivateMemorySize64 / (double)1048576;
+            return p.PrivateMemorySize64 / 1048576D;
         }
 
         private string GetBotUptime()
         {
-            var uptime = DateTime.UtcNow - _botStartedDateUtc;
+            var uptime = DateTime.UtcNow - botStartedDateUtc;
             var proc = Process.GetCurrentProcess();
 
             return $"TelegramBot <pre>v{GitVersionInformation.InformationalVersion}</pre>\n" +
-                   $"<b>Working set:</b> {proc.WorkingSet64 / 1024 / (double)1024:0.00} Mbytes\n" +
-                   $"<b>Peak working set:</b> {proc.PeakWorkingSet64 / 1024 / (double)1024:0.00} Mbytes\n" +
+                   $"<b>Working set:</b> {proc.WorkingSet64 / 1024 / 1024D:0.00} Mbytes\n" +
+                   $"<b>Peak working set:</b> {proc.PeakWorkingSet64 / 1024 / 1024D:0.00} Mbytes\n" +
                    $"<b>Total CPU time:</b> {proc.TotalProcessorTime.TotalSeconds:0.00} sec\n" +
                    $"<b>Uptime:</b> {uptime.Days} day(s) {uptime.Hours:00}h:{uptime.Minutes:00}m:{uptime.Seconds:00}s";
         }

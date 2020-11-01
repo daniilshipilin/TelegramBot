@@ -1,15 +1,9 @@
-using System;
-
-namespace TelegramBot.Helpers
+namespace TelegramBot.TestBot.Helpers
 {
+    using System;
+
     public class FuelcostCalculator
     {
-        public double TripDistance { get; private set; }
-        public double FuelEfficiency { get; private set; }
-        public decimal FuelPriceLiter { get; private set; }
-        public double TripFuelUsedLiters => (TripDistance / 100) * FuelEfficiency;
-        public decimal TripCost => (decimal)TripFuelUsedLiters * FuelPriceLiter;
-
         public FuelcostCalculator(double tripDistance, double fuelEfficiency, decimal fuelPriceLiter)
         {
             if (tripDistance <= 0)
@@ -31,6 +25,16 @@ namespace TelegramBot.Helpers
             FuelEfficiency = fuelEfficiency;
             FuelPriceLiter = fuelPriceLiter;
         }
+
+        public double TripDistance { get; private set; }
+
+        public double FuelEfficiency { get; private set; }
+
+        public decimal FuelPriceLiter { get; private set; }
+
+        public double TripFuelUsedLiters => (TripDistance / 100) * FuelEfficiency;
+
+        public decimal TripCost => (decimal)TripFuelUsedLiters * FuelPriceLiter;
 
         public string TripCostFormatted =>
                 $"<b>Distance:</b> {TripDistance:0.00} km\n" +
