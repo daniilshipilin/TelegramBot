@@ -2,33 +2,34 @@ namespace TelegramBot.TestBot.Helpers
 {
     using System;
     using System.Collections.Generic;
-    using System.Data;
-    using System.Data.SQLite;
     using System.IO;
     using System.Linq;
     using System.Reflection;
     using System.Text;
     using Dapper;
+    using Microsoft.Data.Sqlite;
     using TelegramBot.TestBot.Models;
 
-    public class SQLiteDBAccess
+    public class DatabaseAccess
     {
-        private const int DBVersion = 3;
+        private const int DBVersion = 4;
 
-        private readonly string connectionString;
-        private readonly string dbFilePath;
-
-        public SQLiteDBAccess(string connectionString)
+        public DatabaseAccess(string connectionString)
         {
-            this.connectionString = connectionString;
-            dbFilePath = Path.GetFullPath(new SQLiteConnectionStringBuilder(connectionString).DataSource);
+            var builder = new SqliteConnectionStringBuilder(connectionString);
+            ConnectionString = builder.ConnectionString;
+            DBFilePath = Path.GetFullPath(builder.DataSource);
             CheckDBExists();
             TestDBAccess();
         }
 
+        public string ConnectionString { get; }
+
+        public string DBFilePath { get; }
+
         public void DbCompact()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "VACUUM main;";
 
             db.Execute(sql);
@@ -36,7 +37,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public IList<DB_TelegramUsers> Select_TelegramUsers()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM TelegramUsers;";
 
@@ -45,7 +46,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public IList<DB_TelegramUsers> Select_TelegramUsersIsSubscribed()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM TelegramUsers " +
                          $"WHERE UserIsSubscribed = 1;";
@@ -55,7 +56,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public IList<DB_TelegramUsers> Select_TelegramUsersIsAdministrator()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM TelegramUsers " +
                          $"WHERE UserIsAdmin = 1;";
@@ -65,7 +66,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public DB_TelegramUsers Select_TelegramUsers(long chatId)
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM TelegramUsers " +
                          $"WHERE ChatId = {chatId};";
@@ -75,7 +76,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public DB_CoronaCaseDistributionRecords Select_CoronaCaseDistributionRecords()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM CoronaCaseDistributionRecords " +
                          "ORDER BY CaseID DESC LIMIT 1;";
@@ -85,7 +86,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public string Select_CoronaCaseDistributionRecordsLastTimestamp()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT DateCollectedUtc " +
                          "FROM CoronaCaseDistributionRecords " +
                          "ORDER BY CaseID DESC LIMIT 1;";
@@ -95,7 +96,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public int Count_TelegramUsers()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT COUNT(*) " +
                          "FROM TelegramUsers;";
 
@@ -104,7 +105,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public DB_SqliteSequence LastIndex_TelegramUsers()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM sqlite_sequence " +
                          "WHERE name = 'TelegramUsers';";
@@ -114,7 +115,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public void Insert_CoronaCaseDistributionRecords(DB_CoronaCaseDistributionRecords record)
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
 
             string sql = "INSERT INTO CoronaCaseDistributionRecords (DateCollectedUtc, CaseDistributionRecords) " +
                          "VALUES (@DateCollectedUtc, @CaseDistributionRecords);";
@@ -124,7 +125,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public void Insert_TelegramUsers(DB_TelegramUsers user)
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
 
             string sql = "INSERT INTO TelegramUsers (ChatId, FirstName, LastName, UserName, DateRegisteredUtc, UserIsSubscribed, UserIsAdmin) " +
                          "VALUES (@ChatId, @FirstName, @LastName, @UserName, @DateRegisteredUtc, @UserIsSubscribed, @UserIsAdmin);";
@@ -134,7 +135,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public void Update_TelegramUsers(DB_TelegramUsers user)
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
 
             string sql = "UPDATE TelegramUsers " +
                          "SET FirstName = @FirstName, LastName = @LastName, UserName = @UserName, UserIsSubscribed = @UserIsSubscribed, UserIsAdmin = @UserIsAdmin " +
@@ -145,7 +146,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public void Delete_TelegramUsers(DB_TelegramUsers user)
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
 
             string sql = "DELETE FROM TelegramUsers " +
                          "WHERE ChatId = @ChatId;";
@@ -155,12 +156,9 @@ namespace TelegramBot.TestBot.Helpers
 
         private void CheckDBExists()
         {
-            if (!File.Exists(dbFilePath))
+            if (!File.Exists(DBFilePath))
             {
-                // create new default db
-                CreateEmptyDB();
-
-                // apply default db schema
+                // create new default db & apply default db schema
                 CreateDBSchema();
             }
         }
@@ -173,37 +171,16 @@ namespace TelegramBot.TestBot.Helpers
             {
                 if (setting.Key.Equals("DB_VERSION"))
                 {
-                    if (int.Parse(setting.Value) != DBVersion)
+                    int currentVer = int.Parse(setting.Value);
+
+                    if (currentVer != DBVersion)
                     {
                         // save previous db
-                        File.Move(dbFilePath, $"{dbFilePath}_{DateTime.UtcNow:yyyyMMddhhmmss}.backup");
+                        File.Move(DBFilePath, $"{DBFilePath}_V{currentVer}_{DateTime.UtcNow:yyyyMMddhhmmssfff}.backup");
 
                         // db version mismatch - create new 'clean' db
-                        CreateEmptyDB();
                         CreateDBSchema();
                     }
-                }
-            }
-        }
-
-        private void CreateEmptyDB()
-        {
-            if (!Directory.Exists(Path.GetDirectoryName(dbFilePath)))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(dbFilePath));
-            }
-
-            var assembly = Assembly.GetEntryAssembly();
-
-            if (assembly is object)
-            {
-                using var sr = assembly.GetManifestResourceStream("TelegramBot.TestBot.DB.Users_empty.db");
-
-                if (sr is object)
-                {
-                    using var fs = File.Create(dbFilePath);
-                    sr.Seek(0, SeekOrigin.Begin);
-                    sr.CopyTo(fs);
                 }
             }
         }
@@ -221,7 +198,7 @@ namespace TelegramBot.TestBot.Helpers
                     using var reader = new StreamReader(sr, new UTF8Encoding(false));
                     string sql = reader.ReadToEnd();
 
-                    using IDbConnection db = new SQLiteConnection(connectionString);
+                    using var db = new SqliteConnection(ConnectionString);
                     db.Execute(sql);
                 }
             }
@@ -229,7 +206,7 @@ namespace TelegramBot.TestBot.Helpers
 
         private IList<DB_Settings> Select_Settings()
         {
-            using IDbConnection db = new SQLiteConnection(connectionString);
+            using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM Settings;";
 

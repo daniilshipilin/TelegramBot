@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS "TelegramUsers" (
 	"LastName"	TEXT NOT NULL,
 	"UserName"	TEXT NOT NULL,
 	"DateRegisteredUtc"	TEXT NOT NULL,
-	"UserIsSubscribed"	TEXT NOT NULL,
-    "UserIsAdmin"	TEXT NOT NULL
+	"UserIsSubscribed"	INTEGER NOT NULL,
+    "UserIsAdmin"	INTEGER NOT NULL
 );
 DROP TABLE IF EXISTS "CoronaCaseDistributionRecords";
 CREATE TABLE IF NOT EXISTS "CoronaCaseDistributionRecords" (
@@ -22,5 +22,5 @@ CREATE TABLE IF NOT EXISTS "CoronaCaseDistributionRecords" (
     "DateCollectedUtc"	TEXT NOT NULL,
     "CaseDistributionRecords"	TEXT NOT NULL
 );
-INSERT INTO "Settings" VALUES (1,'DB_VERSION','3');
+INSERT INTO "Settings" VALUES (1,'DB_VERSION','4');
 COMMIT;

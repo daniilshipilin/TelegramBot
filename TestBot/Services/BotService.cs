@@ -34,7 +34,7 @@ namespace TelegramBot.TestBot.Service
         private readonly Timer subscriptionTimer;
         private readonly Timer maintenanceTimer;
         private readonly object locker = new object();
-        private readonly SQLiteDBAccess sqlite;
+        private readonly DatabaseAccess sqlite;
         private readonly IConfiguration configuration;
         private readonly ILogger<HostedService> logger;
 
@@ -62,7 +62,7 @@ namespace TelegramBot.TestBot.Service
             httpClient.DefaultRequestHeaders.Accept.Clear();
             httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            sqlite = new SQLiteDBAccess(this.configuration.GetSection("DatabaseSettings:ConnectionStrings")["Default"]);
+            sqlite = new DatabaseAccess(this.configuration.GetSection("DatabaseSettings:ConnectionStrings")["Default"]);
 
             gcTimer = new Timer(Min60Msec);
             gcTimer.Elapsed += GarbageCollectEvent;

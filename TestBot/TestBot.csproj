@@ -12,11 +12,9 @@
 
     <ItemGroup>
         <None Remove="DB\Users.sql" />
-        <None Remove="DB\Users_empty.db" />
     </ItemGroup>
 
     <ItemGroup>
-        <EmbeddedResource Include="DB\Users_empty.db" />
         <EmbeddedResource Include="DB\Users.sql" />
     </ItemGroup>
 
@@ -26,11 +24,11 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="3.1.9" />
         <PackageReference Include="StyleCop.Analyzers" Version="1.1.118">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.5" />
         <PackageReference Include="Telegram.Bot" Version="15.7.1" />
         <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="3.1.9" />
         <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="3.1.9" />
