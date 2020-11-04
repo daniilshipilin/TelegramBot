@@ -474,16 +474,39 @@ namespace TelegramBot.TestBot.Service
         {
             logger.LogDebug($"{nameof(ExecutePictureCommand)} method called");
 
-            string picsDir = Path.GetFullPath(AppSettings.PicsDirectory);
-            var pics = GetFiles(picsDir, @"\.jpg|\.jpeg|\.png|\.bmp", SearchOption.AllDirectories).ToList();
-
-            if (pics.Count == 0)
+            try
             {
-                throw new Exception($"'{picsDir}' directory has no images");
-            }
+                using var response = await Client.GetAsync(AppSettings.LoremPicsumApiBaseUrl);
 
-            int index = Rnd.Next(pics.Count);
-            await SendFileAsync(chatId, pics[index]);
+                if (response.IsSuccessStatusCode)
+                {
+                    using var sr = await response.Content.ReadAsStreamAsync();
+
+                    string fileName = response.Content.Headers.ContentDisposition.FileName.Replace("\"", string.Empty);
+                    string filePath = Path.Combine(AppSettings.PicsDirectory, fileName);
+
+                    // save received picture file if its new
+                    if (!File.Exists(filePath))
+                    {
+                        using var fileStream = File.Create(filePath);
+                        sr.Seek(0, SeekOrigin.Begin);
+                        sr.CopyTo(fileStream);
+
+                        // reset stream position
+                        sr.Position = 0;
+                    }
+
+                    await botClient.SendDocumentAsync(chatId, new InputOnlineFile(sr, fileName));
+                }
+                else
+                {
+                    throw new Exception(response.ReasonPhrase);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, ex.Message);
+            }
         }
 
         private IEnumerable<string> GetFiles(string path, string searchPatternExpression, SearchOption searchOption)

@@ -12,6 +12,8 @@ namespace TelegramBot.TestBot.Helpers
 
         public static string PicsDirectory => Path.GetFullPath(config.GetValue<string>("ApplicationSettings:PicsDirectory"));
 
+        public static string LoremPicsumApiBaseUrl => config.GetValue<string>("ApplicationSettings:LoremPicsumApiBaseUrl");
+
         public static string TelegramBotToken => config.GetValue<string>("ApplicationSettings:TelegramBotToken");
 
         public static string CoronaApiBaseUrl => config.GetValue<string>("ApplicationSettings:CoronaApiBaseUrl");
