@@ -6,7 +6,6 @@ namespace TelegramBot.TestBot.Service
     using System.Globalization;
     using System.IO;
     using System.Linq;
-    using System.Net.Http;
     using System.Text;
     using System.Text.RegularExpressions;
     using System.Threading.Tasks;
@@ -22,7 +21,6 @@ namespace TelegramBot.TestBot.Service
 
     public class BotService
     {
-        private static readonly HttpClient Client = new HttpClient() { Timeout = new TimeSpan(0, 0, 60) };
         private static readonly Random Rnd = new Random();
 
         private readonly DateTime botStartedDateUtc;
@@ -379,7 +377,7 @@ namespace TelegramBot.TestBot.Service
                 RzhunemoguXml xmlObj;
                 int argument = AppSettings.RzhunemoguApiArgumentsList[Rnd.Next(AppSettings.RzhunemoguApiArgumentsList.Count)];
                 string requestUri = AppSettings.RzhunemoguApiBaseUrl + argument;
-                using var response = await Client.GetAsync(requestUri);
+                using var response = await ApiHttpClient.Client.GetAsync(requestUri);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -437,7 +435,7 @@ namespace TelegramBot.TestBot.Service
                 {
                     sw.Start();
                     var jsonObj = new CaseDistributionJson();
-                    using var response = await Client.GetAsync(AppSettings.CoronaApiBaseUrl);
+                    using var response = await ApiHttpClient.Client.GetAsync(AppSettings.CoronaApiBaseUrl);
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -526,7 +524,7 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
-                using var response = await Client.GetAsync(AppSettings.LoremPicsumApiBaseUrl);
+                using var response = await ApiHttpClient.Client.GetAsync(AppSettings.LoremPicsumApiBaseUrl);
 
                 if (response.IsSuccessStatusCode)
                 {
