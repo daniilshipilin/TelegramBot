@@ -22,14 +22,11 @@ namespace TelegramBot.TestBot.Service
 
     public class BotService
     {
-        private const int Min60Msec = 3600000;
-
         private static readonly HttpClient Client = new HttpClient() { Timeout = new TimeSpan(0, 0, 60) };
         private static readonly Random Rnd = new Random();
 
         private readonly DateTime botStartedDateUtc;
         private readonly ITelegramBotClient botClient;
-        private readonly Timer gcTimer;
         private readonly Timer subscriptionTimer;
         private readonly Timer maintenanceTimer;
         private readonly object locker = new object();
@@ -50,11 +47,6 @@ namespace TelegramBot.TestBot.Service
             };
 
             sqlite = new DatabaseAccess(AppSettings.DatabaseConnectionString);
-
-            gcTimer = new Timer(Min60Msec);
-            gcTimer.Elapsed += GarbageCollectEvent;
-            gcTimer.AutoReset = true;
-            gcTimer.Enabled = true;
 
             subscriptionTimer = new Timer(CalculateTimerInterval(AppSettings.SubscriptionTimerTriggeredAt));
             subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
@@ -120,13 +112,6 @@ namespace TelegramBot.TestBot.Service
             botClient.OnMessageEdited -= OnMessageEditedEvent;
             botClient.OnUpdate -= OnUpdateEvent;
             botClient.OnReceiveError -= OnReceiveErrorEvent;
-        }
-
-        private void GarbageCollectEvent(object sender, ElapsedEventArgs e)
-        {
-            logger.LogDebug($"{nameof(GarbageCollectEvent)} method called");
-
-            GC.Collect();
         }
 
         private void SubscribedUsersNotifyEvent(object sender, ElapsedEventArgs e)
