@@ -7,7 +7,6 @@ namespace TelegramBot.TestBot.Service
     using System.IO;
     using System.Linq;
     using System.Net.Http;
-    using System.Net.Http.Headers;
     using System.Text;
     using System.Text.RegularExpressions;
     using System.Threading.Tasks;
@@ -25,10 +24,11 @@ namespace TelegramBot.TestBot.Service
     {
         private const int Min60Msec = 3600000;
 
+        private static readonly HttpClient Client = new HttpClient() { Timeout = new TimeSpan(0, 0, 60) };
+        private static readonly Random Rnd = new Random();
+
         private readonly DateTime botStartedDateUtc;
-        private readonly Random random;
         private readonly ITelegramBotClient botClient;
-        private readonly HttpClient httpClient;
         private readonly Timer gcTimer;
         private readonly Timer subscriptionTimer;
         private readonly Timer maintenanceTimer;
@@ -43,21 +43,11 @@ namespace TelegramBot.TestBot.Service
         {
             this.logger = logger;
             botStartedDateUtc = DateTime.UtcNow;
-            random = new Random();
 
             botClient = new TelegramBotClient(AppSettings.TelegramBotToken)
             {
                 Timeout = new TimeSpan(0, 0, 60),
             };
-
-            httpClient = new HttpClient()
-            {
-                BaseAddress = new Uri(AppSettings.CoronaApiBaseUrl),
-                Timeout = new TimeSpan(0, 0, 60),
-            };
-
-            httpClient.DefaultRequestHeaders.Accept.Clear();
-            httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             sqlite = new DatabaseAccess(AppSettings.DatabaseConnectionString);
 
@@ -278,6 +268,11 @@ namespace TelegramBot.TestBot.Service
                         await ExecuteFuelcostCommand(chatId, e.Message.Text);
                         break;
 
+                    case "/joke":
+                        await SendTextMessageNoReplyAsync(chatId, "<b>Рандомный анекдот от РжуНеМогу.ру</b>");
+                        await ExecuteJokeCommand(chatId);
+                        break;
+
                     default:
                         await SendTextMessageAsync(
                             chatId,
@@ -329,6 +324,42 @@ namespace TelegramBot.TestBot.Service
             }
         }
 
+        private async Task ExecuteJokeCommand(long chatId)
+        {
+            logger.LogDebug($"{nameof(ExecuteJokeCommand)} method called");
+
+            try
+            {
+                RzhunemoguXml xmlObj;
+                int argument = AppSettings.RzhunemoguApiArgumentsList[Rnd.Next(AppSettings.RzhunemoguApiArgumentsList.Count)];
+                string requestUri = AppSettings.RzhunemoguApiBaseUrl + argument;
+                using var response = await Client.GetAsync(requestUri);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    // register extended encodings
+                    Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+                    var encoding = Encoding.GetEncoding("windows-1251");
+
+                    using var sr = new StreamReader(await response.Content.ReadAsStreamAsync(), encoding);
+                    string xml = sr.ReadToEnd();
+
+                    // deserialize received xml
+                    xmlObj = Utils.XmlDeserializeFromString<RzhunemoguXml>(xml);
+                }
+                else
+                {
+                    throw new Exception(response.ReasonPhrase);
+                }
+
+                await SendTextMessageNoReplyAsync(chatId, xmlObj.Content);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, ex.Message);
+            }
+        }
+
         private async Task ExecuteCoronaCommand(long chatId)
         {
             logger.LogDebug($"{nameof(ExecuteCoronaCommand)} method called");
@@ -356,7 +387,7 @@ namespace TelegramBot.TestBot.Service
                 {
                     sw.Start();
                     var jsonObj = new CaseDistributionJson();
-                    using var response = await httpClient.GetAsync("json");
+                    using var response = await Client.GetAsync(AppSettings.CoronaApiBaseUrl);
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -451,7 +482,7 @@ namespace TelegramBot.TestBot.Service
                 throw new Exception($"'{picsDir}' directory has no images");
             }
 
-            int index = random.Next(pics.Count);
+            int index = Rnd.Next(pics.Count);
             await SendFileAsync(chatId, pics[index]);
         }
 
@@ -528,6 +559,7 @@ namespace TelegramBot.TestBot.Service
                    "  <b>/date</b> - show current date in UTC format;\n" +
                    "  <b>/pic</b> - receive random picture;\n" +
                    "  <b>/corona</b> - get current corona situation update;\n" +
+                   "  <b>/joke</b> - get random joke;\n" +
                    "  <b>/fuelcost</b> - fuel consumption calculator.";
         }
     }

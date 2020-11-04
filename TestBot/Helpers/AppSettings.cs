@@ -1,6 +1,7 @@
 namespace TelegramBot.TestBot.Helpers
 {
     using System;
+    using System.Collections.Generic;
     using System.Globalization;
     using System.IO;
     using Microsoft.Extensions.Configuration;
@@ -20,6 +21,10 @@ namespace TelegramBot.TestBot.Helpers
         public static DateTime MaintenanceTimerTriggeredAt => DateTime.ParseExact(config.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"), "HH:mm:ss", CultureInfo.InvariantCulture);
 
         public static bool FirstUserGetsAdminRights => config.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights");
+
+        public static string RzhunemoguApiBaseUrl => config.GetValue<string>("ApplicationSettings:RzhunemoguApiBaseUrl");
+
+        public static IReadOnlyList<int> RzhunemoguApiArgumentsList => config!.GetSection("ApplicationSettings:RzhunemoguApiArgumentsList").Get<List<int>>();
 
         public static string DatabaseConnectionString => config.GetValue<string>("DatabaseSettings:ConnectionStrings:Default");
 
