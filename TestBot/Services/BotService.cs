@@ -29,6 +29,7 @@ namespace TelegramBot.TestBot.Service
         private readonly ITelegramBotClient botClient;
         private readonly Timer subscriptionTimer;
         private readonly Timer maintenanceTimer;
+        private readonly Timer jokeTimer;
         private readonly object locker = new object();
         private readonly DatabaseAccess sqlite;
         private readonly ILogger<HostedService> logger;
@@ -57,6 +58,11 @@ namespace TelegramBot.TestBot.Service
             maintenanceTimer.Elapsed += MaintenanceEvent;
             maintenanceTimer.AutoReset = false;
             maintenanceTimer.Enabled = true;
+
+            jokeTimer = new Timer(CalculateTimerInterval(AppSettings.JokeTimerTriggeredAt));
+            jokeTimer.Elapsed += JokeEvent;
+            jokeTimer.AutoReset = false;
+            jokeTimer.Enabled = true;
         }
 
         public void PrintBotInfo()
@@ -135,6 +141,34 @@ namespace TelegramBot.TestBot.Service
 
             maintenanceTimer.Interval = CalculateTimerInterval(AppSettings.MaintenanceTimerTriggeredAt);
             maintenanceTimer.Enabled = true;
+        }
+
+        private void JokeEvent(object sender, ElapsedEventArgs e)
+        {
+            logger.LogDebug($"{nameof(JokeEvent)} method called");
+
+            SendJokesToSubscribedUsers();
+
+            jokeTimer.Interval = CalculateTimerInterval(AppSettings.JokeTimerTriggeredAt);
+            jokeTimer.Enabled = true;
+        }
+
+        private void SendJokesToSubscribedUsers()
+        {
+            var users = sqlite.Select_TelegramUsersIsSubscribed();
+
+            if (users.Count == 0)
+            {
+                logger.LogInformation($"{nameof(SendJokesToSubscribedUsers)} - No users to notify");
+                return;
+            }
+
+            logger.LogInformation("Sending jokes to subscribed users");
+
+            foreach (var user in users)
+            {
+                Task.Run(async () => await ExecuteJokeCommand(user.ChatId));
+            }
         }
 
         private void NotifySubscribedUsers()
@@ -254,7 +288,6 @@ namespace TelegramBot.TestBot.Service
                         break;
 
                     case "/joke":
-                        await SendTextMessageNoReplyAsync(chatId, "<b>Рандомный анекдот от РжуНеМогу.ру</b>");
                         await ExecuteJokeCommand(chatId);
                         break;
 
@@ -337,7 +370,11 @@ namespace TelegramBot.TestBot.Service
                     throw new Exception(response.ReasonPhrase);
                 }
 
-                await SendTextMessageNoReplyAsync(chatId, xmlObj.Content);
+                var sb = new StringBuilder();
+                sb.AppendLine("<b>Рандомный анекдот от РжуНеМогу.ру</b>");
+                sb.AppendLine(xmlObj.Content);
+
+                await SendTextMessageNoReplyAsync(chatId, sb.ToString());
             }
             catch (Exception ex)
             {

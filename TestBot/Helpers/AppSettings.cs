@@ -22,6 +22,8 @@ namespace TelegramBot.TestBot.Helpers
 
         public static DateTime MaintenanceTimerTriggeredAt => DateTime.ParseExact(config.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"), "HH:mm:ss", CultureInfo.InvariantCulture);
 
+        public static DateTime JokeTimerTriggeredAt => DateTime.ParseExact(config.GetValue<string>("ApplicationSettings:JokeTimerTriggeredAt"), "HH:mm:ss", CultureInfo.InvariantCulture);
+
         public static bool FirstUserGetsAdminRights => config.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights");
 
         public static string RzhunemoguApiBaseUrl => config.GetValue<string>("ApplicationSettings:RzhunemoguApiBaseUrl");
