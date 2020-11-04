@@ -213,23 +213,33 @@ namespace TelegramBot.TestBot.Service
         private async void OnMessageEvent(object? sender, MessageEventArgs e)
         {
             logger.LogDebug($"{nameof(OnMessageEvent)} method called");
-            logger.LogInformation($"Received a text message from user '{e.Message.From.Username}'  type: {e.Message.Type}  message: '{e.Message.Text}'");
-
-            long chatId = e.Message.Chat.Id;
+            logger.LogInformation($"Received a text message from user '{e.Message.From.Username}'  type: {e.Message.Type}");
 
             try
             {
-                // extract only first argument from message text
-                switch (e.Message.Text.ToLower().Split(' ')[0])
+                long chatId = e.Message.Chat.Id;
+                var user = sqlite.Select_TelegramUsers(chatId);
+
+                switch (e.Message.Type)
                 {
-                    case "/start":
+                    case MessageType.Text:
+                        // extract only first argument from message text
+                        string command = e.Message.Text.Split(' ')[0].ToLower();
+
+                        // main init command
+                        if (command.Equals("/start"))
                         {
-                            await SendTextMessageNoReplyAsync(chatId, $"Hi, {e.Message.From.FirstName} {e.Message.From.LastName} (user: '{e.Message.From.Username}').");
-                            var user = sqlite.Select_TelegramUsers(chatId);
+                            await SendTextMessageNoReplyAsync(
+                                chatId,
+                                $"Hi, {e.Message.From.FirstName} {e.Message.From.LastName} (user: '{e.Message.From.Username}').");
 
                             if (user is null)
                             {
-                                var newUser = new DB_TelegramUsers(chatId, e.Message.Chat.FirstName, e.Message.Chat.LastName, e.Message.Chat.Username);
+                                var newUser = new DB_TelegramUsers(
+                                    chatId,
+                                    e.Message.Chat.FirstName,
+                                    e.Message.Chat.LastName,
+                                    e.Message.Chat.Username);
 
                                 // check if new user must have admin option set to true
                                 if (sqlite.LastIndex_TelegramUsers() is null &&
@@ -246,56 +256,74 @@ namespace TelegramBot.TestBot.Service
                             await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
                         }
 
-                        break;
-
-                    case "/stop":
+                        // even non existing user can call help
+                        else if (command.Equals("/help"))
                         {
-                            var user = sqlite.Select_TelegramUsers(chatId);
+                            await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
+                        }
 
-                            if (user is object)
-                            {
-                                sqlite.Delete_TelegramUsers(user);
-                                logger.LogInformation($"{user.ChatId} user removed from the db");
-                                await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed");
-                            }
+                        // special case - non existing user can only call two commands: /start or /help
+                        else if (user is null)
+                        {
+                            await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
+                            break;
+                        }
+                        else if (command.Equals("/stop"))
+                        {
+                            sqlite.Delete_TelegramUsers(user);
+                            logger.LogInformation($"{user.ChatId} user removed from the db");
+                            await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed");
+                        }
+                        else if (command.Equals("/uptime"))
+                        {
+                            await SendTextMessageNoReplyAsync(chatId, GetBotUptime());
+                        }
+                        else if (command.Equals("/date"))
+                        {
+                            await SendTextMessageNoReplyAsync(chatId, DateTime.UtcNow.ToString("u"));
+                        }
+                        else if (command.Equals("/pic"))
+                        {
+                            await ExecutePictureCommand(chatId);
+                        }
+                        else if (command.Equals("/corona"))
+                        {
+                            await SendTextMessageNoReplyAsync(chatId, "Working on it...");
+                            await ExecuteCoronaCommand(chatId);
+                        }
+                        else if (command.Equals("/fuelcost"))
+                        {
+                            await ExecuteFuelcostCommand(chatId, e.Message.Text);
+                        }
+                        else if (command.Equals("/joke"))
+                        {
+                            await ExecuteJokeCommand(chatId);
+                        }
+                        else
+                        {
+                            await SendTextMessageAsync(
+                                    chatId,
+                                    e.Message.MessageId,
+                                    "Unknown command detected.\nType in /help to display help info");
                         }
 
                         break;
 
-                    case "/help":
-                        await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
-                        break;
+                    case MessageType.Location:
+                        if (user is object)
+                        {
+                            await SendTextMessageNoReplyAsync(
+                                chatId,
+                                $"Your location:\nLatitude: <b>{e.Message.Location.Latitude}</b>  Longitude: <b>{e.Message.Location.Longitude}</b>");
+                        }
+                        else
+                        {
+                            await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
+                        }
 
-                    case "/uptime":
-                        await SendTextMessageNoReplyAsync(chatId, GetBotUptime());
-                        break;
-
-                    case "/date":
-                        await SendTextMessageNoReplyAsync(chatId, DateTime.UtcNow.ToString("u"));
-                        break;
-
-                    case "/pic":
-                        await ExecutePictureCommand(chatId);
-                        break;
-
-                    case "/corona":
-                        await SendTextMessageNoReplyAsync(chatId, "Working on it...");
-                        await ExecuteCoronaCommand(chatId);
-                        break;
-
-                    case "/fuelcost":
-                        await ExecuteFuelcostCommand(chatId, e.Message.Text);
-                        break;
-
-                    case "/joke":
-                        await ExecuteJokeCommand(chatId);
                         break;
 
                     default:
-                        await SendTextMessageAsync(
-                            chatId,
-                            e.Message.MessageId,
-                            "Unknown command detected.\nType in /help to display help info");
                         break;
                 }
             }
