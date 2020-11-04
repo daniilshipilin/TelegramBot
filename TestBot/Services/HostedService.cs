@@ -6,6 +6,7 @@ namespace TelegramBot.TestBot.Service
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
+    using TelegramBot.TestBot.Helpers;
 
     public class HostedService : IHostedService
     {
@@ -55,7 +56,8 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
-                botService = new BotService(configuration, logger);
+                AppSettings.InitSettings(configuration);
+                botService = new BotService(logger);
                 botService.PrintBotInfo();
                 botService.StartReceiving();
             }

@@ -12,7 +12,6 @@ namespace TelegramBot.TestBot.Service
     using System.Text.RegularExpressions;
     using System.Threading.Tasks;
     using System.Timers;
-    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Logging;
     using Newtonsoft.Json;
     using Telegram.Bot;
@@ -35,46 +34,44 @@ namespace TelegramBot.TestBot.Service
         private readonly Timer maintenanceTimer;
         private readonly object locker = new object();
         private readonly DatabaseAccess sqlite;
-        private readonly IConfiguration configuration;
         private readonly ILogger<HostedService> logger;
 
         private bool commandIsExecuting;
         private bool overrideCachedData;
 
-        public BotService(IConfiguration configuration, ILogger<HostedService> logger)
+        public BotService(ILogger<HostedService> logger)
         {
-            this.configuration = configuration;
             this.logger = logger;
             botStartedDateUtc = DateTime.UtcNow;
             random = new Random();
 
-            botClient = new TelegramBotClient(this.configuration.GetValue<string>("ApplicationSettings:TelegramBotToken"))
+            botClient = new TelegramBotClient(AppSettings.TelegramBotToken)
             {
                 Timeout = new TimeSpan(0, 0, 60),
             };
 
             httpClient = new HttpClient()
             {
-                BaseAddress = new Uri(this.configuration.GetValue<string>("ApplicationSettings:CoronaApiBaseUrl")),
+                BaseAddress = new Uri(AppSettings.CoronaApiBaseUrl),
                 Timeout = new TimeSpan(0, 0, 60),
             };
 
             httpClient.DefaultRequestHeaders.Accept.Clear();
             httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            sqlite = new DatabaseAccess(this.configuration.GetSection("DatabaseSettings:ConnectionStrings")["Default"]);
+            sqlite = new DatabaseAccess(AppSettings.DatabaseConnectionString);
 
             gcTimer = new Timer(Min60Msec);
             gcTimer.Elapsed += GarbageCollectEvent;
             gcTimer.AutoReset = true;
             gcTimer.Enabled = true;
 
-            subscriptionTimer = new Timer(CalculateTimerInterval(this.configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt")));
+            subscriptionTimer = new Timer(CalculateTimerInterval(AppSettings.SubscriptionTimerTriggeredAt));
             subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
             subscriptionTimer.AutoReset = false;
             subscriptionTimer.Enabled = true;
 
-            maintenanceTimer = new Timer(CalculateTimerInterval(this.configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt")));
+            maintenanceTimer = new Timer(CalculateTimerInterval(AppSettings.MaintenanceTimerTriggeredAt));
             maintenanceTimer.Elapsed += MaintenanceEvent;
             maintenanceTimer.AutoReset = false;
             maintenanceTimer.Enabled = true;
@@ -107,17 +104,16 @@ namespace TelegramBot.TestBot.Service
             botClient.StopReceiving();
         }
 
-        private double CalculateTimerInterval(string triggerAtTime)
+        private double CalculateTimerInterval(DateTime triggerAtTime)
         {
-            var parsed = DateTime.ParseExact(triggerAtTime, "HH:mm:ss", CultureInfo.InvariantCulture);
             var now = DateTime.UtcNow;
 
-            if (now > parsed)
+            if (now > triggerAtTime)
             {
-                parsed = parsed.AddDays(1);
+                triggerAtTime = triggerAtTime.AddDays(1);
             }
 
-            return (parsed - now).TotalMilliseconds;
+            return (triggerAtTime - now).TotalMilliseconds;
         }
 
         private void SubscribeEvents()
@@ -149,7 +145,7 @@ namespace TelegramBot.TestBot.Service
 
             NotifySubscribedUsers();
 
-            subscriptionTimer.Interval = CalculateTimerInterval(configuration.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt"));
+            subscriptionTimer.Interval = CalculateTimerInterval(AppSettings.SubscriptionTimerTriggeredAt);
             subscriptionTimer.Enabled = true;
         }
 
@@ -162,7 +158,7 @@ namespace TelegramBot.TestBot.Service
 
             NotifyAdministrators(GetBotUptime(), true);
 
-            maintenanceTimer.Interval = CalculateTimerInterval(configuration.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"));
+            maintenanceTimer.Interval = CalculateTimerInterval(AppSettings.MaintenanceTimerTriggeredAt);
             maintenanceTimer.Enabled = true;
         }
 
@@ -228,7 +224,7 @@ namespace TelegramBot.TestBot.Service
 
                                 // check if new user must have admin option set to true
                                 if (sqlite.LastIndex_TelegramUsers() is null &&
-                                    configuration.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights"))
+                                    AppSettings.FirstUserGetsAdminRights)
                                 {
                                     newUser.UserIsAdmin = true;
                                 }
@@ -447,7 +443,7 @@ namespace TelegramBot.TestBot.Service
         {
             logger.LogDebug($"{nameof(ExecutePictureCommand)} method called");
 
-            string picsDir = Path.GetFullPath(configuration.GetValue<string>("ApplicationSettings:PicsDirectory"));
+            string picsDir = Path.GetFullPath(AppSettings.PicsDirectory);
             var pics = GetFiles(picsDir, @"\.jpg|\.jpeg|\.png|\.bmp", SearchOption.AllDirectories).ToList();
 
             if (pics.Count == 0)
