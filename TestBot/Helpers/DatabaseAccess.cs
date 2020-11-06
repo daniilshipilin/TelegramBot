@@ -12,7 +12,7 @@ namespace TelegramBot.TestBot.Helpers
 
     public class DatabaseAccess
     {
-        private const int DBVersion = 4;
+        private const int DBVersion = 5;
 
         public DatabaseAccess(string connectionString)
         {
@@ -127,8 +127,8 @@ namespace TelegramBot.TestBot.Helpers
         {
             using var db = new SqliteConnection(ConnectionString);
 
-            string sql = "INSERT INTO TelegramUsers (ChatId, FirstName, LastName, UserName, DateRegisteredUtc, UserIsSubscribed, UserIsAdmin) " +
-                         "VALUES (@ChatId, @FirstName, @LastName, @UserName, @DateRegisteredUtc, @UserIsSubscribed, @UserIsAdmin);";
+            string sql = "INSERT INTO TelegramUsers (ChatId, FirstName, LastName, UserName, DateRegisteredUtc, UserIsSubscribed, UserIsAdmin, UserLocationLatitude, UserLocationLongitude) " +
+                         "VALUES (@ChatId, @FirstName, @LastName, @UserName, @DateRegisteredUtc, @UserIsSubscribed, @UserIsAdmin, @UserLocationLatitude, @UserLocationLongitude);";
 
             db.Execute(sql, user);
         }
@@ -138,7 +138,7 @@ namespace TelegramBot.TestBot.Helpers
             using var db = new SqliteConnection(ConnectionString);
 
             string sql = "UPDATE TelegramUsers " +
-                         "SET FirstName = @FirstName, LastName = @LastName, UserName = @UserName, UserIsSubscribed = @UserIsSubscribed, UserIsAdmin = @UserIsAdmin " +
+                         "SET FirstName = @FirstName, LastName = @LastName, UserName = @UserName, UserIsSubscribed = @UserIsSubscribed, UserIsAdmin = @UserIsAdmin, UserLocationLatitude = @UserLocationLatitude, UserLocationLongitude = @UserLocationLongitude " +
                          "WHERE ChatId = @ChatId;";
 
             db.Execute(sql, user);

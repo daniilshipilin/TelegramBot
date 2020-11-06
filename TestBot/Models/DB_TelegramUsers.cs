@@ -5,19 +5,6 @@ namespace TelegramBot.TestBot.Models
 
     public class DB_TelegramUsers
     {
-        public DB_TelegramUsers()
-        {
-            // default ctor
-        }
-
-        public DB_TelegramUsers(long chatId, string firstName, string lastName, string userName)
-        {
-            ChatId = chatId;
-            FirstName = firstName;
-            LastName = lastName;
-            UserName = userName;
-        }
-
         public int UserId { get; set; }
 
         public long ChatId { get; set; }
@@ -33,5 +20,9 @@ namespace TelegramBot.TestBot.Models
         public bool UserIsSubscribed { get; set; } = true;
 
         public bool UserIsAdmin { get; set; } = false;
+
+        public float UserLocationLatitude { get; set; }
+
+        public float UserLocationLongitude { get; set; }
     }
 }

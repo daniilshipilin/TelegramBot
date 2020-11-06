@@ -216,7 +216,7 @@ namespace TelegramBot.TestBot.Service
             try
             {
                 long chatId = e.Message.Chat.Id;
-                var user = sqlite.Select_TelegramUsers(chatId);
+                DB_TelegramUsers? user = sqlite.Select_TelegramUsers(chatId);
 
                 switch (e.Message.Type)
                 {
@@ -233,11 +233,13 @@ namespace TelegramBot.TestBot.Service
 
                             if (user is null)
                             {
-                                var newUser = new DB_TelegramUsers(
-                                    chatId,
-                                    e.Message.Chat.FirstName,
-                                    e.Message.Chat.LastName,
-                                    e.Message.Chat.Username);
+                                var newUser = new DB_TelegramUsers
+                                {
+                                    ChatId = chatId,
+                                    FirstName = e.Message.Chat.FirstName,
+                                    LastName = e.Message.Chat.LastName,
+                                    UserName = e.Message.Chat.Username,
+                                };
 
                                 // check if new user must have admin option set to true
                                 if (sqlite.LastIndex_TelegramUsers() is null &&
@@ -248,7 +250,7 @@ namespace TelegramBot.TestBot.Service
 
                                 sqlite.Insert_TelegramUsers(newUser);
                                 logger.LogInformation($"User {newUser.ChatId} added to the db");
-                                await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed");
+                                await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed!");
                             }
 
                             await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
@@ -270,7 +272,7 @@ namespace TelegramBot.TestBot.Service
                         {
                             sqlite.Delete_TelegramUsers(user);
                             logger.LogInformation($"{user.ChatId} user removed from the db");
-                            await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed");
+                            await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed!");
                         }
                         else if (command.Equals("/uptime"))
                         {
@@ -310,9 +312,13 @@ namespace TelegramBot.TestBot.Service
                     case MessageType.Location:
                         if (user is object)
                         {
+                            user.UserLocationLatitude = e.Message.Location.Latitude;
+                            user.UserLocationLongitude = e.Message.Location.Longitude;
+                            sqlite.Update_TelegramUsers(user);
+
                             await SendTextMessageNoReplyAsync(
                                 chatId,
-                                $"Your location:\nLatitude: <b>{e.Message.Location.Latitude}</b>  Longitude: <b>{e.Message.Location.Longitude}</b>");
+                                $"Your current location has been updated!\nLatitude: <b>{e.Message.Location.Latitude}</b>  Longitude: <b>{e.Message.Location.Longitude}</b>");
                         }
                         else
                         {
@@ -499,6 +505,7 @@ namespace TelegramBot.TestBot.Service
 
                     dbRecord = new DB_CoronaCaseDistributionRecords(sb.ToString());
                     sqlite.Insert_CoronaCaseDistributionRecords(dbRecord);
+                    overrideCachedData = false;
                 }
                 else
                 {
@@ -513,7 +520,6 @@ namespace TelegramBot.TestBot.Service
             }
             finally
             {
-                overrideCachedData = false;
                 commandIsExecuting = false;
             }
         }
