@@ -12,9 +12,9 @@ namespace TelegramBot.TestBot.Helpers
 
     public class DatabaseAccess
     {
-        private const int DBVersion = 5;
+        public const int DBVersion = 5;
 
-        public DatabaseAccess(string connectionString)
+        private DatabaseAccess(string connectionString)
         {
             var builder = new SqliteConnectionStringBuilder(connectionString);
             ConnectionString = builder.ConnectionString;
@@ -23,9 +23,16 @@ namespace TelegramBot.TestBot.Helpers
             TestDBAccess();
         }
 
+        public static DatabaseAccess? DB { get; private set; }
+
         public string ConnectionString { get; }
 
         public string DBFilePath { get; }
+
+        public static void InitDatabaseAccess(string connectionString)
+        {
+            DB = new DatabaseAccess(connectionString);
+        }
 
         public void DbCompact()
         {
@@ -79,7 +86,7 @@ namespace TelegramBot.TestBot.Helpers
             using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM CoronaCaseDistributionRecords " +
-                         "ORDER BY CaseID DESC LIMIT 1;";
+                         "ORDER BY CaseId DESC LIMIT 1;";
 
             return db.QueryFirstOrDefault<DB_CoronaCaseDistributionRecords>(sql);
         }
@@ -89,7 +96,7 @@ namespace TelegramBot.TestBot.Helpers
             using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT DateCollectedUtc " +
                          "FROM CoronaCaseDistributionRecords " +
-                         "ORDER BY CaseID DESC LIMIT 1;";
+                         "ORDER BY CaseId DESC LIMIT 1;";
 
             return db.ExecuteScalar<string>(sql);
         }

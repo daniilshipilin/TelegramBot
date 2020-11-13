@@ -3,7 +3,6 @@ namespace TelegramBot.TestBot.Service
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Globalization;
     using System.IO;
     using System.Linq;
     using System.Text;
@@ -11,7 +10,6 @@ namespace TelegramBot.TestBot.Service
     using System.Threading.Tasks;
     using System.Timers;
     using Microsoft.Extensions.Logging;
-    using Newtonsoft.Json;
     using Telegram.Bot;
     using Telegram.Bot.Args;
     using Telegram.Bot.Types.Enums;
@@ -21,15 +19,12 @@ namespace TelegramBot.TestBot.Service
 
     public class BotService
     {
-        private static readonly Random Rnd = new Random();
-
         private readonly DateTime botStartedDateUtc;
         private readonly ITelegramBotClient botClient;
         private readonly Timer subscriptionTimer;
         private readonly Timer maintenanceTimer;
         private readonly Timer jokeTimer;
         private readonly object locker = new object();
-        private readonly DatabaseAccess sqlite;
         private readonly ILogger<HostedService> logger;
 
         private bool commandIsExecuting;
@@ -44,8 +39,6 @@ namespace TelegramBot.TestBot.Service
             {
                 Timeout = new TimeSpan(0, 0, 60),
             };
-
-            sqlite = new DatabaseAccess(AppSettings.DatabaseConnectionString);
 
             subscriptionTimer = new Timer(CalculateTimerInterval(AppSettings.SubscriptionTimerTriggeredAt));
             subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
@@ -65,10 +58,15 @@ namespace TelegramBot.TestBot.Service
 
         public void PrintBotInfo()
         {
+            if (DatabaseAccess.DB is null)
+            {
+                throw new NullReferenceException(nameof(DatabaseAccess.DB));
+            }
+
             var botInfo = botClient.GetMeAsync().Result;
             logger.LogInformation($"TelegramBot v{GitVersionInformation.InformationalVersion}");
             logger.LogInformation($"Id: {botInfo.Id}\tName: '{botInfo.FirstName}'\tUsername: '{botInfo.Username}'");
-            int users = sqlite.Count_TelegramUsers();
+            int users = DatabaseAccess.DB.Count_TelegramUsers();
             logger.LogInformation($"{users} user(s) found in db");
         }
 
@@ -94,7 +92,7 @@ namespace TelegramBot.TestBot.Service
         {
             var now = DateTime.UtcNow;
 
-            if (now > triggerAtTime)
+            if (now.TimeOfDay > triggerAtTime.TimeOfDay)
             {
                 triggerAtTime = triggerAtTime.AddDays(1);
             }
@@ -132,8 +130,13 @@ namespace TelegramBot.TestBot.Service
         {
             logger.LogDebug($"{nameof(MaintenanceEvent)} method called");
 
+            if (DatabaseAccess.DB is null)
+            {
+                throw new NullReferenceException(nameof(DatabaseAccess.DB));
+            }
+
             logger.LogInformation("Compacting db");
-            sqlite.DbCompact();
+            DatabaseAccess.DB.DbCompact();
 
             NotifyAdministrators(GetBotUptime(), true);
 
@@ -153,7 +156,12 @@ namespace TelegramBot.TestBot.Service
 
         private void SendJokesToSubscribedUsers()
         {
-            var users = sqlite.Select_TelegramUsersIsSubscribed();
+            if (DatabaseAccess.DB is null)
+            {
+                throw new NullReferenceException(nameof(DatabaseAccess.DB));
+            }
+
+            var users = DatabaseAccess.DB.Select_TelegramUsersIsSubscribed();
 
             if (users.Count == 0)
             {
@@ -171,7 +179,12 @@ namespace TelegramBot.TestBot.Service
 
         private void NotifySubscribedUsers()
         {
-            var users = sqlite.Select_TelegramUsersIsSubscribed();
+            if (DatabaseAccess.DB is null)
+            {
+                throw new NullReferenceException(nameof(DatabaseAccess.DB));
+            }
+
+            var users = DatabaseAccess.DB.Select_TelegramUsersIsSubscribed();
 
             if (users.Count == 0)
             {
@@ -192,7 +205,12 @@ namespace TelegramBot.TestBot.Service
 
         private void NotifyAdministrators(string notificationMessage, bool notifySilently = false)
         {
-            var users = sqlite.Select_TelegramUsersIsAdministrator();
+            if (DatabaseAccess.DB is null)
+            {
+                throw new NullReferenceException(nameof(DatabaseAccess.DB));
+            }
+
+            var users = DatabaseAccess.DB.Select_TelegramUsersIsAdministrator();
 
             if (users.Count == 0)
             {
@@ -215,8 +233,13 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
+                if (DatabaseAccess.DB is null)
+                {
+                    throw new NullReferenceException(nameof(DatabaseAccess.DB));
+                }
+
                 long chatId = e.Message.Chat.Id;
-                DB_TelegramUsers? user = sqlite.Select_TelegramUsers(chatId);
+                DB_TelegramUsers? user = DatabaseAccess.DB.Select_TelegramUsers(chatId);
 
                 switch (e.Message.Type)
                 {
@@ -242,13 +265,13 @@ namespace TelegramBot.TestBot.Service
                                 };
 
                                 // check if new user must have admin option set to true
-                                if (sqlite.LastIndex_TelegramUsers() is null &&
+                                if (DatabaseAccess.DB.LastIndex_TelegramUsers() is null &&
                                     AppSettings.FirstUserGetsAdminRights)
                                 {
                                     newUser.UserIsAdmin = true;
                                 }
 
-                                sqlite.Insert_TelegramUsers(newUser);
+                                DatabaseAccess.DB.Insert_TelegramUsers(newUser);
                                 logger.LogInformation($"User {newUser.ChatId} added to the db");
                                 await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed!");
                             }
@@ -270,7 +293,7 @@ namespace TelegramBot.TestBot.Service
                         }
                         else if (command.Equals("/stop"))
                         {
-                            sqlite.Delete_TelegramUsers(user);
+                            DatabaseAccess.DB.Delete_TelegramUsers(user);
                             logger.LogInformation($"{user.ChatId} user removed from the db");
                             await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed!");
                         }
@@ -314,7 +337,7 @@ namespace TelegramBot.TestBot.Service
                         {
                             user.UserLocationLatitude = e.Message.Location.Latitude;
                             user.UserLocationLongitude = e.Message.Location.Longitude;
-                            sqlite.Update_TelegramUsers(user);
+                            DatabaseAccess.DB.Update_TelegramUsers(user);
 
                             await SendTextMessageNoReplyAsync(
                                 chatId,
@@ -361,8 +384,8 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
-                double tripDistance = (command.Length >= 2) ? double.Parse(command[1]) : 100;
-                double fuelEfficiency = (command.Length >= 3) ? double.Parse(command[2]) : 6.0;
+                double tripDistance = (command.Length >= 2) ? double.Parse(command[1]) : 100.0D;
+                double fuelEfficiency = (command.Length >= 3) ? double.Parse(command[2]) : 6.0D;
                 decimal fuelPriceLiter = (command.Length >= 4) ? decimal.Parse(command[3]) : 1.249M;
 
                 var fuelCalculator = new FuelcostCalculator(tripDistance, fuelEfficiency, fuelPriceLiter);
@@ -380,32 +403,10 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
-                RzhunemoguXml xmlObj;
-                int argument = AppSettings.RzhunemoguApiArgumentsList[Rnd.Next(AppSettings.RzhunemoguApiArgumentsList.Count)];
-                string requestUri = AppSettings.RzhunemoguApiBaseUrl + argument;
-                using var response = await ApiHttpClient.Client.GetAsync(requestUri);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    // register extended encodings
-                    Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-                    var encoding = Encoding.GetEncoding("windows-1251");
-
-                    using var sr = new StreamReader(await response.Content.ReadAsStreamAsync(), encoding);
-                    string xml = sr.ReadToEnd();
-
-                    // deserialize received xml
-                    xmlObj = Utils.XmlDeserializeFromString<RzhunemoguXml>(xml);
-                }
-                else
-                {
-                    throw new Exception(response.ReasonPhrase);
-                }
-
+                var xmlObj = await RzhunemoguApi.DownloadRandomJoke();
                 var sb = new StringBuilder();
                 sb.AppendLine("<b>Рандомный анекдот от РжуНеМогу.ру</b>");
                 sb.AppendLine(xmlObj.Content);
-
                 await SendTextMessageNoReplyAsync(chatId, sb.ToString());
             }
             catch (Exception ex)
@@ -431,88 +432,13 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
-                var sw = new Stopwatch();
-                DB_CoronaCaseDistributionRecords? dbRecord = null;
-                string timestamp = sqlite.Select_CoronaCaseDistributionRecordsLastTimestamp();
-                var lastRecordDateUtc = (timestamp is object) ? DateTime.ParseExact(timestamp, "u", CultureInfo.InvariantCulture) : new DateTime(1, 1, 1);
+                var sw = Stopwatch.StartNew();
+                var dbRecord = await CoronaApi.DownloadCoronaCaseDistributionRecords(overrideCachedData);
+                sw.Stop();
 
-                // download data, if last download operation was done more than hour ago
-                if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1 || overrideCachedData)
-                {
-                    sw.Start();
-                    var jsonObj = new CaseDistributionJson();
-                    using var response = await ApiHttpClient.Client.GetAsync(AppSettings.CoronaApiBaseUrl);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        // read response in json format
-                        string json = await response.Content.ReadAsStringAsync();
-
-                        // create string list for possible errors during json processing
-                        var errors = new List<string>();
-                        var settings = new JsonSerializerSettings()
-                        {
-                            Error = (sender, args) =>
-                            {
-                                // put registered errors in created string list
-                                errors.Add(args.ErrorContext.Error.Message);
-                                args.ErrorContext.Handled = true;
-                            },
-                        };
-
-                        // deserialize received json
-                        jsonObj = JsonConvert.DeserializeObject<CaseDistributionJson>(json, settings);
-
-                        if (errors.Count > 0)
-                        {
-                            throw new Exception($"JSON deserialization failed{Environment.NewLine}" +
-                                                $"{string.Join(Environment.NewLine, errors)}");
-                        }
-                    }
-                    else
-                    {
-                        throw new Exception(response.ReasonPhrase);
-                    }
-
-                    // select the records from specific region
-                    var records = jsonObj.Records.FindAll(i => i.ContinentExp.Equals("Europe", StringComparison.InvariantCultureIgnoreCase));
-                    var caseDistributionRecords = new List<CaseDistributionJson.Record>();
-
-                    foreach (var record in records)
-                    {
-                        // skip already added country record
-                        if (!caseDistributionRecords.Exists(x => x.CountriesAndTerritories.Equals(record.CountriesAndTerritories, StringComparison.InvariantCultureIgnoreCase)))
-                        {
-                            caseDistributionRecords.Add(record);
-                        }
-                    }
-
-                    // sort list records
-                    caseDistributionRecords = caseDistributionRecords.OrderByDescending(i => i.CumulativeNumber).ToList();
-
-                    sw.Stop();
-
-                    // generate output message
-                    var sb = new StringBuilder();
-                    sb.AppendLine($"<b>COVID-19 situation update</b>");
-                    sb.AppendLine("Timestamp\tCountry\tCumulativeNumber");
-                    sb.Append("<pre>");
-
-                    caseDistributionRecords.ForEach(i => sb.AppendLine($"{i.TimeStamp:yyyy-MM-dd}\t{i.CountriesAndTerritories,-12}\t{i.CumulativeNumber:0.00}"));
-
-                    sb.AppendLine("</pre>");
-                    sb.AppendLine($"{caseDistributionRecords.Count} record(s) in total.");
-
-                    dbRecord = new DB_CoronaCaseDistributionRecords(sb.ToString());
-                    sqlite.Insert_CoronaCaseDistributionRecords(dbRecord);
-                    overrideCachedData = false;
-                }
-                else
-                {
-                    dbRecord = sqlite.Select_CoronaCaseDistributionRecords();
-                }
-
-                await SendTextMessageNoReplyAsync(chatId, dbRecord.CaseDistributionRecords + $"Data collected on {dbRecord.DateCollectedUtc} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
+                await SendTextMessageNoReplyAsync(
+                    chatId,
+                    dbRecord.CaseDistributionRecords + $"Data collected on {dbRecord.DateCollectedUtc} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
             }
             catch (Exception ex)
             {
@@ -530,32 +456,9 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
-                using var response = await ApiHttpClient.Client.GetAsync(AppSettings.LoremPicsumApiBaseUrl);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    using var sr = await response.Content.ReadAsStreamAsync();
-
-                    string fileName = response.Content.Headers.ContentDisposition.FileName.Replace("\"", string.Empty);
-                    string filePath = Path.Combine(AppSettings.PicsDirectory, fileName);
-
-                    // save received picture file if its new
-                    if (!File.Exists(filePath))
-                    {
-                        using var fileStream = File.Create(filePath);
-                        sr.Seek(0, SeekOrigin.Begin);
-                        sr.CopyTo(fileStream);
-
-                        // reset stream position
-                        sr.Position = 0;
-                    }
-
-                    await botClient.SendDocumentAsync(chatId, new InputOnlineFile(sr, fileName));
-                }
-                else
-                {
-                    throw new Exception(response.ReasonPhrase);
-                }
+                var filePath = await LoremPicsumApi.DownloadRandomImage();
+                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+                await botClient.SendDocumentAsync(chatId, new InputOnlineFile(fs, filePath));
             }
             catch (Exception ex)
             {

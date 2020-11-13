@@ -57,6 +57,7 @@ namespace TelegramBot.TestBot.Service
             try
             {
                 AppSettings.InitSettings(configuration);
+                DatabaseAccess.InitDatabaseAccess(AppSettings.DatabaseConnectionString);
                 botService = new BotService(logger);
                 botService.PrintBotInfo();
                 botService.StartReceiving();

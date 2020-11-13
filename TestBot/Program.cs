@@ -36,6 +36,7 @@ namespace TelegramBot.TestBot
                 .ConfigureLogging((hostContext, configLogging) =>
                 {
                     configLogging.AddSerilog(new LoggerConfiguration().ReadFrom.Configuration(hostContext.Configuration).CreateLogger());
+                    configLogging.AddConfiguration(hostContext.Configuration.GetSection("Logging"));
                     configLogging.AddConsole();
                     configLogging.AddDebug();
                 })
