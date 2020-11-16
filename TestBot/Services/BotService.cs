@@ -88,7 +88,7 @@ namespace TelegramBot.TestBot.Service
             botClient.StopReceiving();
         }
 
-        private double CalculateTimerInterval(DateTime triggerAtTime)
+        private static double CalculateTimerInterval(DateTime triggerAtTime)
         {
             var now = DateTime.UtcNow;
 
@@ -98,6 +98,35 @@ namespace TelegramBot.TestBot.Service
             }
 
             return (triggerAtTime - now).TotalMilliseconds;
+        }
+
+        private static IEnumerable<string> GetFiles(string path, string searchPatternExpression, SearchOption searchOption)
+        {
+            var reSearchPattern = new Regex(searchPatternExpression, RegexOptions.IgnoreCase);
+
+            return Directory.EnumerateFiles(path, "*", searchOption).Where(file => reSearchPattern.IsMatch(Path.GetExtension(file)));
+        }
+
+        private static double GetTotalAllocatedMemoryInMBytes()
+        {
+            using var p = Process.GetCurrentProcess();
+
+            return p.PrivateMemorySize64 / 1048576D;
+        }
+
+        private static string GetBotInfo()
+        {
+            return $"TelegramBot v{GitVersionInformation.SemVer} made by @daniilshipilin.\n" +
+                   "This bot supports following commands:\n" +
+                   "  <b>/start</b> - subscribe to receive messages from the bot;\n" +
+                   "  <b>/stop</b> - stop receiving messages from the bot;\n" +
+                   "  <b>/help</b> - display help info;\n" +
+                   "  <b>/uptime</b> - display service uptime info;\n" +
+                   "  <b>/date</b> - show current date in UTC format;\n" +
+                   "  <b>/pic</b> - receive random picture;\n" +
+                   "  <b>/corona</b> - get current corona situation update;\n" +
+                   "  <b>/joke</b> - get random joke;\n" +
+                   "  <b>/fuelcost</b> - fuel consumption calculator.";
         }
 
         private void SubscribeEvents()
@@ -406,7 +435,7 @@ namespace TelegramBot.TestBot.Service
                 var xmlObj = await RzhunemoguApi.DownloadRandomJoke();
                 var sb = new StringBuilder();
                 sb.AppendLine("<b>Рандомный анекдот от РжуНеМогу.ру</b>");
-                sb.AppendLine(xmlObj.Content);
+                sb.AppendLine(xmlObj?.Content);
                 await SendTextMessageNoReplyAsync(chatId, sb.ToString());
             }
             catch (Exception ex)
@@ -466,13 +495,6 @@ namespace TelegramBot.TestBot.Service
             }
         }
 
-        private IEnumerable<string> GetFiles(string path, string searchPatternExpression, SearchOption searchOption)
-        {
-            var reSearchPattern = new Regex(searchPatternExpression, RegexOptions.IgnoreCase);
-
-            return Directory.EnumerateFiles(path, "*", searchOption).Where(file => reSearchPattern.IsMatch(Path.GetExtension(file)));
-        }
-
         private async Task SendTextMessageAsync(long chatId, int messageId, string message)
         {
             var msg = await botClient.SendTextMessageAsync(
@@ -509,13 +531,6 @@ namespace TelegramBot.TestBot.Service
             logger.LogInformation($"'{fileName}' file sent.");
         }
 
-        private double GetTotalAllocatedMemoryInMBytes()
-        {
-            using var p = Process.GetCurrentProcess();
-
-            return p.PrivateMemorySize64 / 1048576D;
-        }
-
         private string GetBotUptime()
         {
             var uptime = DateTime.UtcNow - botStartedDateUtc;
@@ -526,21 +541,6 @@ namespace TelegramBot.TestBot.Service
                    $"<b>Peak working set:</b> {proc.PeakWorkingSet64 / 1024 / 1024D:0.00} Mbytes\n" +
                    $"<b>Total CPU time:</b> {proc.TotalProcessorTime.TotalSeconds:0.00} sec\n" +
                    $"<b>Uptime:</b> {uptime.Days} day(s) {uptime.Hours:00}h:{uptime.Minutes:00}m:{uptime.Seconds:00}s";
-        }
-
-        private string GetBotInfo()
-        {
-            return $"TelegramBot v{GitVersionInformation.SemVer} made by @daniilshipilin.\n" +
-                   "This bot supports following commands:\n" +
-                   "  <b>/start</b> - subscribe to receive messages from the bot;\n" +
-                   "  <b>/stop</b> - stop receiving messages from the bot;\n" +
-                   "  <b>/help</b> - display help info;\n" +
-                   "  <b>/uptime</b> - display service uptime info;\n" +
-                   "  <b>/date</b> - show current date in UTC format;\n" +
-                   "  <b>/pic</b> - receive random picture;\n" +
-                   "  <b>/corona</b> - get current corona situation update;\n" +
-                   "  <b>/joke</b> - get random joke;\n" +
-                   "  <b>/fuelcost</b> - fuel consumption calculator.";
         }
     }
 }

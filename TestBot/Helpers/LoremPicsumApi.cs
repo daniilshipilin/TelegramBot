@@ -12,7 +12,13 @@ namespace TelegramBot.TestBot.Helpers
 
             if (response.IsSuccessStatusCode)
             {
-                string fileName = response.Content.Headers.ContentDisposition.FileName.Replace("\"", string.Empty);
+                string? fileName = response.Content.Headers.ContentDisposition?.FileName?.Replace("\"", string.Empty);
+
+                if (fileName is null)
+                {
+                    throw new NullReferenceException(nameof(fileName));
+                }
+
                 string filePath = Path.Combine(AppSettings.PicsDirectory, fileName);
                 using var sr = await response.Content.ReadAsStreamAsync();
 

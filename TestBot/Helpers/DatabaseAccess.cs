@@ -19,7 +19,6 @@ namespace TelegramBot.TestBot.Helpers
             var builder = new SqliteConnectionStringBuilder(connectionString);
             ConnectionString = builder.ConnectionString;
             DBFilePath = Path.GetFullPath(builder.DataSource);
-            CheckDBExists();
             TestDBAccess();
         }
 
@@ -161,50 +160,61 @@ namespace TelegramBot.TestBot.Helpers
             db.Execute(sql, user);
         }
 
-        private void CheckDBExists()
+        private void TestDBAccess()
         {
             if (!File.Exists(DBFilePath))
             {
-                // create new default db & apply default db schema
-                CreateDBSchema();
+                CreateDefaultDB();
             }
-        }
-
-        private void TestDBAccess()
-        {
-            var settings = Select_Settings();
-
-            foreach (var setting in settings)
+            else
             {
-                if (setting.Key.Equals("DB_VERSION"))
+                var settings = Select_Settings();
+
+                foreach (var setting in settings)
                 {
-                    int currentVer = int.Parse(setting.Value);
-
-                    if (currentVer != DBVersion)
+                    if (setting.Key.Equals("DB_VERSION"))
                     {
-                        // save previous db
-                        File.Move(DBFilePath, $"{DBFilePath}_V{currentVer}_{DateTime.UtcNow:yyyyMMddhhmmssfff}.backup");
+                        int currentVer = int.Parse(setting.Value);
 
-                        // db version mismatch - create new 'clean' db
-                        CreateDBSchema();
+                        if (currentVer != DBVersion)
+                        {
+                            // save previous db
+                            File.Move(DBFilePath, $"{DBFilePath}_V{currentVer}_{DateTime.UtcNow:yyyyMMddhhmmssfff}.backup");
+
+                            // create default db
+                            CreateDefaultDB();
+                        }
                     }
                 }
             }
         }
 
-        private void CreateDBSchema()
+        private void CreateDefaultDB()
         {
+            var file = new FileInfo(DBFilePath);
+            file.Directory?.Create();
+
             var assembly = Assembly.GetEntryAssembly();
 
-            if (assembly is object)
+            if (assembly is not null)
             {
-                using var sr = assembly.GetManifestResourceStream("TelegramBot.TestBot.DB.Users.sql");
+                // create new 'clean' db
+                using var sr1 = assembly.GetManifestResourceStream("TelegramBot.TestBot.DB.Empty.db");
 
-                if (sr is object)
+                if (sr1 is not null)
                 {
-                    using var reader = new StreamReader(sr, new UTF8Encoding(false));
-                    string sql = reader.ReadToEnd();
+                    using var fs = File.Create(DBFilePath);
+                    sr1.Seek(0, SeekOrigin.Begin);
+                    sr1.CopyTo(fs);
+                }
 
+                // apply db schema
+                using var sr2 = assembly.GetManifestResourceStream("TelegramBot.TestBot.DB.Users.sql");
+
+                if (sr2 is not null)
+                {
+                    using var reader = new StreamReader(sr2);
+                    string sql = reader.ReadToEnd();
                     using var db = new SqliteConnection(ConnectionString);
                     db.Execute(sql);
                 }

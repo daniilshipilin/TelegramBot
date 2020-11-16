@@ -10,9 +10,9 @@ namespace TelegramBot.TestBot.Helpers
     {
         private static readonly Random Rnd = new Random();
 
-        public static async Task<RzhunemoguXml> DownloadRandomJoke()
+        public static async Task<RzhunemoguXml?> DownloadRandomJoke()
         {
-            RzhunemoguXml xmlObj;
+            RzhunemoguXml? xmlObj;
             int argument = AppSettings.RzhunemoguApiArgumentsList[Rnd.Next(AppSettings.RzhunemoguApiArgumentsList.Count)];
             string requestUri = AppSettings.RzhunemoguApiBaseUrl + argument;
             using var response = await ApiHttpClient.Client.GetAsync(requestUri);
@@ -27,7 +27,7 @@ namespace TelegramBot.TestBot.Helpers
                 string xml = sr.ReadToEnd();
 
                 // deserialize received xml
-                xmlObj = Utils.XmlDeserializeFromString<RzhunemoguXml>(xml);
+                xmlObj = XmlUtils.XmlDeserializeFromString<RzhunemoguXml>(xml);
 
                 return xmlObj;
             }
