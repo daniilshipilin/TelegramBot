@@ -30,7 +30,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public static IReadOnlyList<int> RzhunemoguApiArgumentsList => config!.GetSection("ApplicationSettings:RzhunemoguApiArgumentsList").Get<List<int>>();
 
-        public static string DatabaseConnectionString => config.GetValue<string>("DatabaseSettings:ConnectionStrings:Default");
+        public static string DatabaseConnectionString => config.GetConnectionString("Default");
 
         /// <summary>
         /// Initializes application settings.
