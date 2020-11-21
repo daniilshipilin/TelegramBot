@@ -2,7 +2,6 @@ namespace TelegramBot.TestBot.Helpers
 {
     using System;
     using System.Collections.Generic;
-    using System.Globalization;
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
@@ -11,19 +10,13 @@ namespace TelegramBot.TestBot.Helpers
 
     public class CoronaApi
     {
-        public static async Task<DB_CoronaCaseDistributionRecords> DownloadCoronaCaseDistributionRecords(bool overrideCachedData)
+        // cashed record
+        private static CoronaCaseDistributionRecords? dbRecord;
+
+        public static async Task<CoronaCaseDistributionRecords> DownloadCoronaCaseDistributionRecords(bool overrideCachedData)
         {
-            if (DatabaseAccess.DB is null)
-            {
-                throw new NullReferenceException(nameof(DatabaseAccess.DB));
-            }
-
-            DB_CoronaCaseDistributionRecords dbRecord;
-            string timestamp = DatabaseAccess.DB.Select_CoronaCaseDistributionRecordsLastTimestamp();
-            var lastRecordDateUtc = (timestamp is object) ? DateTime.ParseExact(timestamp, "u", CultureInfo.InvariantCulture) : new DateTime(1, 1, 1);
-
             // download data, if last download operation was done more than hour ago
-            if ((DateTime.UtcNow - lastRecordDateUtc).Hours >= 1 || overrideCachedData)
+            if (dbRecord is null || (DateTime.UtcNow - dbRecord.DateCollectedUtc).Hours >= 1 || overrideCachedData)
             {
                 var jsonObj = new CaseDistributionJson();
                 using var response = await ApiHttpClient.Client.GetAsync(AppSettings.CoronaApiBaseUrl);
@@ -86,12 +79,7 @@ namespace TelegramBot.TestBot.Helpers
                 sb.AppendLine("</pre>");
                 sb.AppendLine($"{caseDistributionRecords.Count} record(s) in total.");
 
-                dbRecord = new DB_CoronaCaseDistributionRecords(sb.ToString());
-                DatabaseAccess.DB.Insert_CoronaCaseDistributionRecords(dbRecord);
-            }
-            else
-            {
-                dbRecord = DatabaseAccess.DB.Select_CoronaCaseDistributionRecords();
+                dbRecord = new CoronaCaseDistributionRecords() { CaseDistributionRecords = sb.ToString() };
             }
 
             return dbRecord;

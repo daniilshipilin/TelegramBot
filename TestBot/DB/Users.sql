@@ -18,11 +18,5 @@ CREATE TABLE IF NOT EXISTS "TelegramUsers" (
     "UserLocationLatitude"	REAL NOT NULL,
     "UserLocationLongitude"	REAL NOT NULL
 );
-DROP TABLE IF EXISTS "CoronaCaseDistributionRecords";
-CREATE TABLE IF NOT EXISTS "CoronaCaseDistributionRecords" (
-    "CaseId"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-    "DateCollectedUtc"	TEXT NOT NULL,
-    "CaseDistributionRecords"	TEXT NOT NULL
-);
-INSERT INTO "Settings" VALUES (1,'DB_VERSION','5');
+INSERT INTO "Settings" VALUES (1,'DB_VERSION','6');
 COMMIT;

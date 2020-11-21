@@ -26,6 +26,7 @@ namespace TelegramBot.TestBot.Service
         private readonly Timer jokeTimer;
         private readonly object locker = new object();
         private readonly ILogger<HostedService> logger;
+        private readonly DataAccess db;
 
         private bool commandIsExecuting;
         private bool overrideCachedData;
@@ -39,6 +40,8 @@ namespace TelegramBot.TestBot.Service
             {
                 Timeout = new TimeSpan(0, 0, 60),
             };
+
+            db = new DataAccess(AppSettings.DatabaseConnectionString);
 
             subscriptionTimer = new Timer(CalculateTimerInterval(AppSettings.SubscriptionTimerTriggeredAt));
             subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
@@ -58,15 +61,10 @@ namespace TelegramBot.TestBot.Service
 
         public void PrintBotInfo()
         {
-            if (DatabaseAccess.DB is null)
-            {
-                throw new NullReferenceException(nameof(DatabaseAccess.DB));
-            }
-
             var botInfo = botClient.GetMeAsync().Result;
             logger.LogInformation($"TelegramBot v{GitVersionInformation.InformationalVersion}");
             logger.LogInformation($"Id: {botInfo.Id}\tName: '{botInfo.FirstName}'\tUsername: '{botInfo.Username}'");
-            int users = DatabaseAccess.DB.Count_TelegramUsers();
+            int users = db.Count_TelegramUsers();
             logger.LogInformation($"{users} user(s) found in db");
         }
 
@@ -159,13 +157,8 @@ namespace TelegramBot.TestBot.Service
         {
             logger.LogDebug($"{nameof(MaintenanceEvent)} method called");
 
-            if (DatabaseAccess.DB is null)
-            {
-                throw new NullReferenceException(nameof(DatabaseAccess.DB));
-            }
-
             logger.LogInformation("Compacting db");
-            DatabaseAccess.DB.DbCompact();
+            db.DbCompact();
 
             NotifyAdministrators(GetBotUptime(), true);
 
@@ -185,12 +178,7 @@ namespace TelegramBot.TestBot.Service
 
         private void SendJokesToSubscribedUsers()
         {
-            if (DatabaseAccess.DB is null)
-            {
-                throw new NullReferenceException(nameof(DatabaseAccess.DB));
-            }
-
-            var users = DatabaseAccess.DB.Select_TelegramUsersIsSubscribed();
+            var users = db.Select_TelegramUsersIsSubscribed();
 
             if (users.Count == 0)
             {
@@ -208,12 +196,7 @@ namespace TelegramBot.TestBot.Service
 
         private void NotifySubscribedUsers()
         {
-            if (DatabaseAccess.DB is null)
-            {
-                throw new NullReferenceException(nameof(DatabaseAccess.DB));
-            }
-
-            var users = DatabaseAccess.DB.Select_TelegramUsersIsSubscribed();
+            var users = db.Select_TelegramUsersIsSubscribed();
 
             if (users.Count == 0)
             {
@@ -234,12 +217,7 @@ namespace TelegramBot.TestBot.Service
 
         private void NotifyAdministrators(string notificationMessage, bool notifySilently = false)
         {
-            if (DatabaseAccess.DB is null)
-            {
-                throw new NullReferenceException(nameof(DatabaseAccess.DB));
-            }
-
-            var users = DatabaseAccess.DB.Select_TelegramUsersIsAdministrator();
+            var users = db.Select_TelegramUsersIsAdministrator();
 
             if (users.Count == 0)
             {
@@ -262,13 +240,8 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
-                if (DatabaseAccess.DB is null)
-                {
-                    throw new NullReferenceException(nameof(DatabaseAccess.DB));
-                }
-
                 long chatId = e.Message.Chat.Id;
-                DB_TelegramUsers? user = DatabaseAccess.DB.Select_TelegramUsers(chatId);
+                DB_TelegramUsers? user = db.Select_TelegramUsers(chatId);
 
                 switch (e.Message.Type)
                 {
@@ -294,13 +267,13 @@ namespace TelegramBot.TestBot.Service
                                 };
 
                                 // check if new user must have admin option set to true
-                                if (DatabaseAccess.DB.LastIndex_TelegramUsers() is null &&
+                                if (db.LastIndex_TelegramUsers() is null &&
                                     AppSettings.FirstUserGetsAdminRights)
                                 {
                                     newUser.UserIsAdmin = true;
                                 }
 
-                                DatabaseAccess.DB.Insert_TelegramUsers(newUser);
+                                db.Insert_TelegramUsers(newUser);
                                 logger.LogInformation($"User {newUser.ChatId} added to the db");
                                 await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed!");
                             }
@@ -322,7 +295,7 @@ namespace TelegramBot.TestBot.Service
                         }
                         else if (command.Equals("/stop"))
                         {
-                            DatabaseAccess.DB.Delete_TelegramUsers(user);
+                            db.Delete_TelegramUsers(user);
                             logger.LogInformation($"{user.ChatId} user removed from the db");
                             await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed!");
                         }
@@ -366,7 +339,7 @@ namespace TelegramBot.TestBot.Service
                         {
                             user.UserLocationLatitude = e.Message.Location.Latitude;
                             user.UserLocationLongitude = e.Message.Location.Longitude;
-                            DatabaseAccess.DB.Update_TelegramUsers(user);
+                            db.Update_TelegramUsers(user);
 
                             await SendTextMessageNoReplyAsync(
                                 chatId,
@@ -423,6 +396,7 @@ namespace TelegramBot.TestBot.Service
             catch (Exception ex)
             {
                 logger.LogError(ex, ex.Message);
+                await SendTextMessageNoReplyAsync(chatId, ex.Message);
             }
         }
 
@@ -441,6 +415,7 @@ namespace TelegramBot.TestBot.Service
             catch (Exception ex)
             {
                 logger.LogError(ex, ex.Message);
+                await SendTextMessageNoReplyAsync(chatId, ex.Message);
             }
         }
 
@@ -472,6 +447,7 @@ namespace TelegramBot.TestBot.Service
             catch (Exception ex)
             {
                 logger.LogError(ex, ex.Message);
+                await SendTextMessageNoReplyAsync(chatId, ex.Message);
             }
             finally
             {
@@ -492,6 +468,7 @@ namespace TelegramBot.TestBot.Service
             catch (Exception ex)
             {
                 logger.LogError(ex, ex.Message);
+                await SendTextMessageNoReplyAsync(chatId, ex.Message);
             }
         }
 
