@@ -28,7 +28,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public static string RzhunemoguApiBaseUrl => config.GetValue<string>("ApplicationSettings:RzhunemoguApiBaseUrl");
 
-        public static IReadOnlyList<int> RzhunemoguApiArgumentsList => config!.GetSection("ApplicationSettings:RzhunemoguApiArgumentsList").Get<List<int>>();
+        public static IReadOnlyList<string> RzhunemoguApiArguments => config.GetValue<string>("ApplicationSettings:RzhunemoguApiArguments").Split(',', StringSplitOptions.TrimEntries);
 
         public static string DatabaseConnectionString => config.GetConnectionString("Default");
 

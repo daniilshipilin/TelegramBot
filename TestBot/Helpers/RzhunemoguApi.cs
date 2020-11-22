@@ -12,9 +12,8 @@ namespace TelegramBot.TestBot.Helpers
 
         public static async Task<RzhunemoguXml?> DownloadRandomJoke()
         {
-            RzhunemoguXml? xmlObj;
-            int argument = AppSettings.RzhunemoguApiArgumentsList[Rnd.Next(AppSettings.RzhunemoguApiArgumentsList.Count)];
-            string requestUri = AppSettings.RzhunemoguApiBaseUrl + argument;
+            // append random parameter from argument list to the base request string
+            string requestUri = AppSettings.RzhunemoguApiBaseUrl + AppSettings.RzhunemoguApiArguments[Rnd.Next(AppSettings.RzhunemoguApiArguments.Count)];
             using var response = await ApiHttpClient.Client.GetAsync(requestUri);
 
             if (response.IsSuccessStatusCode)
@@ -27,7 +26,7 @@ namespace TelegramBot.TestBot.Helpers
                 string xml = sr.ReadToEnd();
 
                 // deserialize received xml
-                xmlObj = XmlUtils.XmlDeserializeFromString<RzhunemoguXml>(xml);
+                var xmlObj = XmlUtils.XmlDeserializeFromString<RzhunemoguXml>(xml);
 
                 return xmlObj;
             }
