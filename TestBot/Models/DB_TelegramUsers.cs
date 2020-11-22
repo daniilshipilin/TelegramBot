@@ -5,21 +5,21 @@ namespace TelegramBot.TestBot.Models
 
     public class DB_TelegramUsers
     {
-        public int UserId { get; set; }
+        public int UserId { get; init; }
 
-        public long ChatId { get; set; }
+        public long ChatId { get; init; }
 
-        public string FirstName { get; set; } = string.Empty;
+        public string FirstName { get; init; } = string.Empty;
 
-        public string LastName { get; set; } = string.Empty;
+        public string LastName { get; init; } = string.Empty;
 
-        public string UserName { get; set; } = string.Empty;
+        public string UserName { get; init; } = string.Empty;
 
-        public string DateRegisteredUtc { get; set; } = DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture);
+        public string DateRegisteredUtc { get; init; } = DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture);
 
-        public bool UserIsSubscribed { get; set; } = true;
+        public bool UserIsSubscribed { get; init; }
 
-        public bool UserIsAdmin { get; set; } = false;
+        public bool UserIsAdmin { get; init; }
 
         public float UserLocationLatitude { get; set; }
 

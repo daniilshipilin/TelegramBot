@@ -6,6 +6,6 @@ namespace TelegramBot.TestBot.Models
     public class RzhunemoguXml
     {
         [XmlElement("content")]
-        public string Content { get; set; } = string.Empty;
+        public string Content { get; init; } = string.Empty;
     }
 }

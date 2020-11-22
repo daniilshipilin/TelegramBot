@@ -26,7 +26,7 @@ namespace TelegramBot.TestBot.Service
         private readonly Timer jokeTimer;
         private readonly object locker = new object();
         private readonly ILogger<HostedService> logger;
-        private readonly DataAccess db;
+        private readonly SqliteDataAccess db;
 
         private bool commandIsExecuting;
         private bool overrideCachedData;
@@ -41,7 +41,7 @@ namespace TelegramBot.TestBot.Service
                 Timeout = new TimeSpan(0, 0, 60),
             };
 
-            db = new DataAccess(AppSettings.DatabaseConnectionString);
+            db = new SqliteDataAccess(AppSettings.DatabaseConnectionString);
 
             subscriptionTimer = new Timer(CalculateTimerInterval(AppSettings.SubscriptionTimerTriggeredAt));
             subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
@@ -264,14 +264,11 @@ namespace TelegramBot.TestBot.Service
                                     FirstName = e.Message.Chat.FirstName,
                                     LastName = e.Message.Chat.LastName,
                                     UserName = e.Message.Chat.Username,
-                                };
+                                    UserIsSubscribed = true,
 
-                                // check if new user must have admin option set to true
-                                if (db.LastIndex_TelegramUsers() is null &&
-                                    AppSettings.FirstUserGetsAdminRights)
-                                {
-                                    newUser.UserIsAdmin = true;
-                                }
+                                    // check if new user must have admin option set to true
+                                    UserIsAdmin = db.LastIndex_TelegramUsers() is null && AppSettings.FirstUserGetsAdminRights,
+                                };
 
                                 db.Insert_TelegramUsers(newUser);
                                 logger.LogInformation($"User {newUser.ChatId} added to the db");
@@ -335,7 +332,7 @@ namespace TelegramBot.TestBot.Service
                         break;
 
                     case MessageType.Location:
-                        if (user is object)
+                        if (user is not null)
                         {
                             user.UserLocationLatitude = e.Message.Location.Latitude;
                             user.UserLocationLongitude = e.Message.Location.Longitude;
@@ -437,12 +434,26 @@ namespace TelegramBot.TestBot.Service
             try
             {
                 var sw = Stopwatch.StartNew();
-                var dbRecord = await CoronaApi.DownloadCoronaCaseDistributionRecords(overrideCachedData);
+                var (records, timestamp) = await CoronaApi.DownloadCoronaCaseDistributionRecords(overrideCachedData);
                 sw.Stop();
+
+                // generate output message
+                var sb = new StringBuilder();
+                sb.AppendLine($"<b>COVID-19 situation update</b>");
+                sb.AppendLine("Timestamp\tCountry\tCumulativeNumber");
+                sb.Append("<pre>");
+
+                // sort list records first
+                records.OrderByDescending(i => i.CumulativeNumber)
+                    .ToList()
+                    .ForEach(i => sb.AppendLine($"{i.TimeStamp:yyyy-MM-dd}\t{i.CountriesAndTerritories,-12}\t{i.CumulativeNumber:0.00}"));
+
+                sb.AppendLine("</pre>");
+                sb.AppendLine($"{records.Count} record(s) in total.");
 
                 await SendTextMessageNoReplyAsync(
                     chatId,
-                    dbRecord.CaseDistributionRecords + $"Data collected on {dbRecord.DateCollectedUtc} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
+                    sb.ToString() + $"Data collected on {timestamp:u} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
             }
             catch (Exception ex)
             {

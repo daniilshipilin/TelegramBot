@@ -2,21 +2,23 @@ namespace TelegramBot.TestBot.Helpers
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
-    using System.Text;
     using System.Threading.Tasks;
     using Newtonsoft.Json;
     using TelegramBot.TestBot.Models;
 
     public class CoronaApi
     {
-        // cashed record
-        private static CoronaCaseDistributionRecords? dbRecord;
+        // cashed records
+        private static List<CaseDistributionJson.Record>? caseDistributionRecords;
+        private static DateTime recordsCachedDateUtc = DateTime.UtcNow;
 
-        public static async Task<CoronaCaseDistributionRecords> DownloadCoronaCaseDistributionRecords(bool overrideCachedData)
+        public static async Task<(List<CaseDistributionJson.Record>, DateTime)> DownloadCoronaCaseDistributionRecords(bool overrideCachedData)
         {
-            // download data, if last download operation was done more than hour ago
-            if (dbRecord is null || (DateTime.UtcNow - dbRecord.DateCollectedUtc).Hours >= 1 || overrideCachedData)
+            // download data, if last download operation was done yesterday
+            if (caseDistributionRecords is null ||
+                caseDistributionRecords.Count == 0 ||
+                (DateTime.UtcNow.Date - recordsCachedDateUtc.Date).Days >= 1 ||
+                overrideCachedData)
             {
                 var jsonObj = new CaseDistributionJson();
                 using var response = await ApiHttpClient.Client.GetAsync(AppSettings.CoronaApiBaseUrl);
@@ -54,35 +56,22 @@ namespace TelegramBot.TestBot.Helpers
 
                 // select the records from specific region
                 var records = jsonObj.Records.FindAll(i => i.ContinentExp.Equals("Europe", StringComparison.InvariantCultureIgnoreCase));
-                var caseDistributionRecords = new List<CaseDistributionJson.Record>();
+                var newCaseDistributionRecords = new List<CaseDistributionJson.Record>();
 
                 foreach (var record in records)
                 {
-                    // skip already added country record
-                    if (!caseDistributionRecords.Exists(x => x.CountriesAndTerritories.Equals(record.CountriesAndTerritories, StringComparison.InvariantCultureIgnoreCase)))
+                    // skip already added country recent record
+                    if (!newCaseDistributionRecords.Exists(x => x.CountriesAndTerritories.Equals(record.CountriesAndTerritories, StringComparison.InvariantCultureIgnoreCase)))
                     {
-                        caseDistributionRecords.Add(record);
+                        newCaseDistributionRecords.Add(record);
                     }
                 }
 
-                // sort list records
-                caseDistributionRecords = caseDistributionRecords.OrderByDescending(i => i.CumulativeNumber).ToList();
-
-                // generate output message
-                var sb = new StringBuilder();
-                sb.AppendLine($"<b>COVID-19 situation update</b>");
-                sb.AppendLine("Timestamp\tCountry\tCumulativeNumber");
-                sb.Append("<pre>");
-
-                caseDistributionRecords.ForEach(i => sb.AppendLine($"{i.TimeStamp:yyyy-MM-dd}\t{i.CountriesAndTerritories,-12}\t{i.CumulativeNumber:0.00}"));
-
-                sb.AppendLine("</pre>");
-                sb.AppendLine($"{caseDistributionRecords.Count} record(s) in total.");
-
-                dbRecord = new CoronaCaseDistributionRecords() { CaseDistributionRecords = sb.ToString() };
+                caseDistributionRecords = newCaseDistributionRecords;
+                recordsCachedDateUtc = DateTime.UtcNow;
             }
 
-            return dbRecord;
+            return (caseDistributionRecords, recordsCachedDateUtc);
         }
     }
 }
