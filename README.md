@@ -1,4 +1,4 @@
 ![bot.ico](./TestBot/Images/bot.ico)
 # TelegramBot
-### Author: Daniil Shipilin (daniil.shipilin@gmail.com)
+### Author: Daniil Shipilin
 A simple test telegram bot made by [@daniilshipilin](https://t.me/daniilshipilin)
