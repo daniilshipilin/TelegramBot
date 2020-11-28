@@ -18,11 +18,11 @@ namespace TelegramBot.TestBot.Helpers
 
         public static string CoronaApiBaseUrl => config.GetValue<string>("ApplicationSettings:CoronaApiBaseUrl");
 
-        public static DateTime SubscriptionTimerTriggeredAt => DateTime.ParseExact(config.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt"), "HH:mm:ss", CultureInfo.InvariantCulture);
+        public static TimeSpan SubscriptionTimerTriggeredAt => TimeSpan.ParseExact(config.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt"), "hh\\:mm\\:ss", CultureInfo.InvariantCulture);
 
-        public static DateTime MaintenanceTimerTriggeredAt => DateTime.ParseExact(config.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"), "HH:mm:ss", CultureInfo.InvariantCulture);
+        public static TimeSpan MaintenanceTimerTriggeredAt => TimeSpan.ParseExact(config.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"), "hh\\:mm\\:ss", CultureInfo.InvariantCulture);
 
-        public static DateTime JokeTimerTriggeredAt => DateTime.ParseExact(config.GetValue<string>("ApplicationSettings:JokeTimerTriggeredAt"), "HH:mm:ss", CultureInfo.InvariantCulture);
+        public static TimeSpan JokeTimerTriggeredAt => TimeSpan.ParseExact(config.GetValue<string>("ApplicationSettings:JokeTimerTriggeredAt"), "hh\\:mm\\:ss", CultureInfo.InvariantCulture);
 
         public static bool FirstUserGetsAdminRights => config.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights");
 

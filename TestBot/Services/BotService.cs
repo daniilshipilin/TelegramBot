@@ -43,18 +43,18 @@ namespace TelegramBot.TestBot.Service
 
             db = new SqliteDataAccess(AppSettings.DatabaseConnectionString);
 
-            subscriptionTimer = new Timer(CalculateTimerInterval(AppSettings.SubscriptionTimerTriggeredAt));
-            subscriptionTimer.Elapsed += SubscribedUsersNotifyEvent;
+            subscriptionTimer = new Timer(CalculateInitialInterval(AppSettings.SubscriptionTimerTriggeredAt));
+            subscriptionTimer.Elapsed += (sender, e) => SubscribedUsersNotifyEvent();
             subscriptionTimer.AutoReset = false;
             subscriptionTimer.Enabled = true;
 
-            maintenanceTimer = new Timer(CalculateTimerInterval(AppSettings.MaintenanceTimerTriggeredAt));
-            maintenanceTimer.Elapsed += MaintenanceEvent;
+            maintenanceTimer = new Timer(CalculateInitialInterval(AppSettings.MaintenanceTimerTriggeredAt));
+            maintenanceTimer.Elapsed += (sender, e) => MaintenanceEvent();
             maintenanceTimer.AutoReset = false;
             maintenanceTimer.Enabled = true;
 
-            jokeTimer = new Timer(CalculateTimerInterval(AppSettings.JokeTimerTriggeredAt));
-            jokeTimer.Elapsed += JokeEvent;
+            jokeTimer = new Timer(CalculateInitialInterval(AppSettings.JokeTimerTriggeredAt));
+            jokeTimer.Elapsed += (sender, e) => JokeEvent();
             jokeTimer.AutoReset = false;
             jokeTimer.Enabled = true;
         }
@@ -86,16 +86,16 @@ namespace TelegramBot.TestBot.Service
             botClient.StopReceiving();
         }
 
-        private static double CalculateTimerInterval(DateTime triggerAtTime)
+        private static double CalculateInitialInterval(TimeSpan trigger)
         {
-            var now = DateTime.UtcNow;
+            var diff = trigger - DateTime.UtcNow.TimeOfDay;
 
-            if (now.TimeOfDay > triggerAtTime.TimeOfDay)
+            if (diff.TotalMilliseconds < 0)
             {
-                triggerAtTime = triggerAtTime.AddDays(1);
+                return Math.Abs(diff.TotalMilliseconds) + 86400000;
             }
 
-            return (triggerAtTime - now).TotalMilliseconds;
+            return diff.TotalMilliseconds;
         }
 
         private static IEnumerable<string> GetFiles(string path, string searchPatternExpression, SearchOption searchOption)
@@ -127,6 +127,12 @@ namespace TelegramBot.TestBot.Service
                    "  <b>/fuelcost</b> - fuel consumption calculator.";
         }
 
+        private static void SetTimerIntervalOneDayAndStart(Timer timer)
+        {
+            timer.Interval = 86400000;
+            timer.Enabled = true;
+        }
+
         private void SubscribeEvents()
         {
             botClient.OnMessage += OnMessageEvent;
@@ -143,37 +149,34 @@ namespace TelegramBot.TestBot.Service
             botClient.OnReceiveError -= OnReceiveErrorEvent;
         }
 
-        private void SubscribedUsersNotifyEvent(object sender, ElapsedEventArgs e)
+        private void SubscribedUsersNotifyEvent()
         {
+            SetTimerIntervalOneDayAndStart(subscriptionTimer);
+
             logger.LogDebug($"{nameof(SubscribedUsersNotifyEvent)} method called");
 
             NotifySubscribedUsers();
-
-            subscriptionTimer.Interval = CalculateTimerInterval(AppSettings.SubscriptionTimerTriggeredAt);
-            subscriptionTimer.Enabled = true;
         }
 
-        private void MaintenanceEvent(object sender, ElapsedEventArgs e)
+        private void MaintenanceEvent()
         {
+            SetTimerIntervalOneDayAndStart(maintenanceTimer);
+
             logger.LogDebug($"{nameof(MaintenanceEvent)} method called");
 
             logger.LogInformation("Compacting db");
             db.DbCompact();
 
             NotifyAdministrators(GetBotUptime(), true);
-
-            maintenanceTimer.Interval = CalculateTimerInterval(AppSettings.MaintenanceTimerTriggeredAt);
-            maintenanceTimer.Enabled = true;
         }
 
-        private void JokeEvent(object sender, ElapsedEventArgs e)
+        private void JokeEvent()
         {
+            SetTimerIntervalOneDayAndStart(jokeTimer);
+
             logger.LogDebug($"{nameof(JokeEvent)} method called");
 
             SendJokesToSubscribedUsers();
-
-            jokeTimer.Interval = CalculateTimerInterval(AppSettings.JokeTimerTriggeredAt);
-            jokeTimer.Enabled = true;
         }
 
         private void SendJokesToSubscribedUsers()
