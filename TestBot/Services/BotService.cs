@@ -112,6 +112,17 @@ namespace TelegramBot.TestBot.Service
                    "  <b>/fuelcost</b> - fuel consumption calculator.";
         }
 
+        private static string GetPermissionDeniedMessage()
+        {
+            return "<pre>" +
+                "###################################\n" +
+                "#         RESTRICTED AREA         #\n" +
+                "#    NO UNAUTHORIZED PERSONNEL    #\n" +
+                "#       BEYOUND THIS POINT        #\n" +
+                "###################################" +
+                "</pre>";
+        }
+
         private static void ResetTimerInterval(Timer timer)
         {
             timer.Interval = TimeSpan.FromDays(1).TotalMilliseconds;
@@ -245,7 +256,7 @@ namespace TelegramBot.TestBot.Service
         private async void OnMessageEvent(object? sender, MessageEventArgs e)
         {
             logger.LogDebug($"{nameof(OnMessageEvent)} method called");
-            logger.LogInformation($"Received a text message from user '{e.Message.From.Username}'  type: {e.Message.Type}");
+            logger.LogInformation($"Received a text message from user: '{e.Message.From.Username}'  id: {e.Message.Chat.Id}  type: {e.Message.Type}");
 
             try
             {
@@ -265,7 +276,7 @@ namespace TelegramBot.TestBot.Service
                                 chatId,
                                 $"Hi, {e.Message.From.FirstName} {e.Message.From.LastName} (user: '{e.Message.From.Username}').");
 
-                            if (user is null)
+                            if (user is null && !AppSettings.PermissionDeniedForNewUsers)
                             {
                                 var newUser = new DB_TelegramUsers
                                 {
@@ -282,22 +293,26 @@ namespace TelegramBot.TestBot.Service
                                 db.Insert_TelegramUsers(newUser);
                                 logger.LogInformation($"User {newUser.ChatId} added to the db");
                                 await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed!");
+                                await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
                             }
-
-                            await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
+                            else if (AppSettings.PermissionDeniedForNewUsers)
+                            {
+                                string message = $"Permission denied for user id {chatId}";
+                                logger.LogInformation(message);
+                                NotifyAdministrators(message);
+                                await SendTextMessageNoReplyAsync(chatId, GetPermissionDeniedMessage());
+                            }
                         }
 
-                        // even non existing user can call help
-                        else if (command.Equals("/help"))
-                        {
-                            await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
-                        }
-
-                        // special case - non existing user can only call two commands: /start or /help
+                        // special case - non existing users can only call /start command
                         else if (user is null)
                         {
                             await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
                             break;
+                        }
+                        else if (command.Equals("/help"))
+                        {
+                            await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
                         }
                         else if (command.Equals("/stop"))
                         {

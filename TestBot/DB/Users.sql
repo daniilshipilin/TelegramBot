@@ -9,14 +9,14 @@ DROP TABLE IF EXISTS "TelegramUsers";
 CREATE TABLE IF NOT EXISTS "TelegramUsers" (
 	"UserId"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
 	"ChatId"	INTEGER NOT NULL UNIQUE,
-	"FirstName"	TEXT NOT NULL,
-	"LastName"	TEXT NOT NULL,
-	"UserName"	TEXT NOT NULL,
+	"FirstName"	TEXT,
+	"LastName"	TEXT,
+	"UserName"	TEXT,
 	"DateRegisteredUtc"	TEXT NOT NULL,
 	"UserIsSubscribed"	INTEGER NOT NULL,
-    "UserIsAdmin"	INTEGER NOT NULL,
-    "UserLocationLatitude"	REAL NOT NULL,
-    "UserLocationLongitude"	REAL NOT NULL
+	"UserIsAdmin"	INTEGER NOT NULL,
+	"UserLocationLatitude"	REAL,
+	"UserLocationLongitude"	REAL
 );
-INSERT INTO "Settings" VALUES (1,'DB_VERSION','6');
+INSERT INTO "Settings" VALUES (1,'DB_VERSION','7');
 COMMIT;

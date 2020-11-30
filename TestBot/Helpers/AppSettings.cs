@@ -26,6 +26,8 @@ namespace TelegramBot.TestBot.Helpers
 
         public static bool FirstUserGetsAdminRights => config.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights");
 
+        public static bool PermissionDeniedForNewUsers => config.GetValue<bool>("ApplicationSettings:PermissionDeniedForNewUsers");
+
         public static string RzhunemoguApiBaseUrl => config.GetValue<string>("ApplicationSettings:RzhunemoguApiBaseUrl");
 
         public static IReadOnlyList<string> RzhunemoguApiArguments => GetSectionString("ApplicationSettings:RzhunemoguApiArguments");

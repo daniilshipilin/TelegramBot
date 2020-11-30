@@ -9,11 +9,11 @@ namespace TelegramBot.TestBot.Models
 
         public long ChatId { get; init; }
 
-        public string FirstName { get; init; } = string.Empty;
+        public string? FirstName { get; init; }
 
-        public string LastName { get; init; } = string.Empty;
+        public string? LastName { get; init; }
 
-        public string UserName { get; init; } = string.Empty;
+        public string? UserName { get; init; }
 
         public string DateRegisteredUtc { get; init; } = DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture);
 
@@ -21,8 +21,8 @@ namespace TelegramBot.TestBot.Models
 
         public bool UserIsAdmin { get; init; }
 
-        public float UserLocationLatitude { get; set; }
+        public float? UserLocationLatitude { get; set; }
 
-        public float UserLocationLongitude { get; set; }
+        public float? UserLocationLongitude { get; set; }
     }
 }

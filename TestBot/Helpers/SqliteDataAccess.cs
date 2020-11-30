@@ -19,7 +19,7 @@ namespace TelegramBot.TestBot.Helpers
             TestDBAccess();
         }
 
-        public int DBVersion => 6;
+        public int DBVersion => 7;
 
         public string ConnectionString { get; }
 
