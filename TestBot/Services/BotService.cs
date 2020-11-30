@@ -255,126 +255,118 @@ namespace TelegramBot.TestBot.Service
 
         private async void OnMessageEvent(object? sender, MessageEventArgs e)
         {
-            logger.LogDebug($"{nameof(OnMessageEvent)} method called");
-            logger.LogInformation($"Received a text message from user: '{e.Message.From.Username}'  id: {e.Message.Chat.Id}  type: {e.Message.Type}");
+            logger.LogInformation($"Received message from user: '{e.Message.From.Username}'  id: {e.Message.Chat.Id}  type: {e.Message.Type}");
 
             try
             {
                 long chatId = e.Message.Chat.Id;
                 DB_TelegramUsers? user = db.Select_TelegramUsers(chatId);
 
-                switch (e.Message.Type)
+                if (user is null && AppSettings.PermissionDeniedForNewUsers)
                 {
-                    case MessageType.Text:
-                        // extract only first argument from message text
-                        string command = e.Message.Text.Split(' ')[0].ToLower();
+                    string message = $"Permission denied for user id {chatId}";
+                    logger.LogInformation(message);
+                    NotifyAdministrators(message);
+                    await SendTextMessageNoReplyAsync(chatId, GetPermissionDeniedMessage());
+                    return;
+                }
 
-                        // main init command
-                        if (command.Equals("/start"))
+                if (e.Message.Type == MessageType.Text)
+                {
+                    // extract only first argument from message text
+                    string command = e.Message.Text.Split(' ')[0].ToLower();
+
+                    // main init command
+                    if (command.Equals("/start"))
+                    {
+                        await SendTextMessageNoReplyAsync(
+                            chatId,
+                            $"Hi, {e.Message.From.FirstName} {e.Message.From.LastName} (user: '{e.Message.From.Username}').");
+
+                        if (user is null)
                         {
-                            await SendTextMessageNoReplyAsync(
-                                chatId,
-                                $"Hi, {e.Message.From.FirstName} {e.Message.From.LastName} (user: '{e.Message.From.Username}').");
-
-                            if (user is null && !AppSettings.PermissionDeniedForNewUsers)
+                            var newUser = new DB_TelegramUsers
                             {
-                                var newUser = new DB_TelegramUsers
-                                {
-                                    ChatId = chatId,
-                                    FirstName = e.Message.Chat.FirstName,
-                                    LastName = e.Message.Chat.LastName,
-                                    UserName = e.Message.Chat.Username,
-                                    UserIsSubscribed = true,
+                                ChatId = chatId,
+                                FirstName = e.Message.Chat.FirstName,
+                                LastName = e.Message.Chat.LastName,
+                                UserName = e.Message.Chat.Username,
+                                UserIsSubscribed = true,
 
-                                    // check if new user must have admin option set to true
-                                    UserIsAdmin = db.LastIndex_TelegramUsers() is null && AppSettings.FirstUserGetsAdminRights,
-                                };
+                                // check if new user must have admin option set to true
+                                UserIsAdmin = db.LastIndex_TelegramUsers() is null && AppSettings.FirstUserGetsAdminRights,
+                            };
 
-                                db.Insert_TelegramUsers(newUser);
-                                logger.LogInformation($"User {newUser.ChatId} added to the db");
-                                await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed!");
-                                await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
-                            }
-                            else if (AppSettings.PermissionDeniedForNewUsers)
-                            {
-                                string message = $"Permission denied for user id {chatId}";
-                                logger.LogInformation(message);
-                                NotifyAdministrators(message);
-                                await SendTextMessageNoReplyAsync(chatId, GetPermissionDeniedMessage());
-                            }
+                            db.Insert_TelegramUsers(newUser);
+                            logger.LogInformation($"User {newUser.ChatId} added to the db");
+                            await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed!");
                         }
 
+                        await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
+                    }
+                    else if (user is null)
+                    {
                         // special case - non existing users can only call /start command
-                        else if (user is null)
-                        {
-                            await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
-                            break;
-                        }
-                        else if (command.Equals("/help"))
-                        {
-                            await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
-                        }
-                        else if (command.Equals("/stop"))
-                        {
-                            db.Delete_TelegramUsers(user);
-                            logger.LogInformation($"{user.ChatId} user removed from the db");
-                            await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed!");
-                        }
-                        else if (command.Equals("/uptime"))
-                        {
-                            await SendTextMessageNoReplyAsync(chatId, GetBotUptime());
-                        }
-                        else if (command.Equals("/date"))
-                        {
-                            await SendTextMessageNoReplyAsync(chatId, DateTime.UtcNow.ToString("u"));
-                        }
-                        else if (command.Equals("/pic"))
-                        {
-                            await ExecutePictureCommand(chatId);
-                        }
-                        else if (command.Equals("/corona"))
-                        {
-                            await SendTextMessageNoReplyAsync(chatId, "Working on it...");
-                            await ExecuteCoronaCommand(chatId);
-                        }
-                        else if (command.Equals("/fuelcost"))
-                        {
-                            await ExecuteFuelcostCommand(chatId, e.Message.Text);
-                        }
-                        else if (command.Equals("/joke"))
-                        {
-                            await ExecuteJokeCommand(chatId);
-                        }
-                        else
-                        {
-                            await SendTextMessageAsync(
-                                    chatId,
-                                    e.Message.MessageId,
-                                    "Unknown command detected.\nType in /help to display help info");
-                        }
-
-                        break;
-
-                    case MessageType.Location:
-                        if (user is not null)
-                        {
-                            user.UserLocationLatitude = e.Message.Location.Latitude;
-                            user.UserLocationLongitude = e.Message.Location.Longitude;
-                            db.Update_TelegramUsers(user);
-
-                            await SendTextMessageNoReplyAsync(
+                        await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
+                    }
+                    else if (command.Equals("/help"))
+                    {
+                        await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
+                    }
+                    else if (command.Equals("/stop"))
+                    {
+                        db.Delete_TelegramUsers(user);
+                        logger.LogInformation($"{user.ChatId} user removed from the db");
+                        await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed!");
+                    }
+                    else if (command.Equals("/uptime"))
+                    {
+                        await SendTextMessageNoReplyAsync(chatId, GetBotUptime());
+                    }
+                    else if (command.Equals("/date"))
+                    {
+                        await SendTextMessageNoReplyAsync(chatId, DateTime.UtcNow.ToString("u"));
+                    }
+                    else if (command.Equals("/pic"))
+                    {
+                        await ExecutePictureCommand(chatId);
+                    }
+                    else if (command.Equals("/corona"))
+                    {
+                        await SendTextMessageNoReplyAsync(chatId, "Working on it...");
+                        await ExecuteCoronaCommand(chatId);
+                    }
+                    else if (command.Equals("/fuelcost"))
+                    {
+                        await ExecuteFuelcostCommand(chatId, e.Message.Text);
+                    }
+                    else if (command.Equals("/joke"))
+                    {
+                        await ExecuteJokeCommand(chatId);
+                    }
+                    else
+                    {
+                        await SendTextMessageAsync(
                                 chatId,
-                                $"Your current location has been updated!\nLatitude: <b>{e.Message.Location.Latitude}</b>  Longitude: <b>{e.Message.Location.Longitude}</b>");
-                        }
-                        else
-                        {
-                            await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
-                        }
+                                e.Message.MessageId,
+                                "Unknown command detected.\nType in /help to display help info");
+                    }
+                }
+                else if (e.Message.Type == MessageType.Location)
+                {
+                    if (user is null)
+                    {
+                        await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
+                        return;
+                    }
 
-                        break;
+                    user.UserLocationLatitude = e.Message.Location.Latitude;
+                    user.UserLocationLongitude = e.Message.Location.Longitude;
+                    db.Update_TelegramUsers(user);
 
-                    default:
-                        break;
+                    await SendTextMessageNoReplyAsync(
+                        chatId,
+                        $"Your current location has been updated!\nLatitude: <b>{e.Message.Location.Latitude}</b>  Longitude: <b>{e.Message.Location.Longitude}</b>");
                 }
             }
             catch (Exception ex)
