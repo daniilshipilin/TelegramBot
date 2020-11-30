@@ -18,17 +18,17 @@ namespace TelegramBot.TestBot.Helpers
 
         public static string CoronaApiBaseUrl => config.GetValue<string>("ApplicationSettings:CoronaApiBaseUrl");
 
-        public static TimeSpan SubscriptionTimerTriggeredAt => TimeSpan.ParseExact(config.GetValue<string>("ApplicationSettings:SubscriptionTimerTriggeredAt"), "hh\\:mm\\:ss", CultureInfo.InvariantCulture);
+        public static IReadOnlyList<TimeSpan> SubscriptionTriggers => GetSectionTimeSpan("ApplicationSettings:SubscriptionTriggers");
 
-        public static TimeSpan MaintenanceTimerTriggeredAt => TimeSpan.ParseExact(config.GetValue<string>("ApplicationSettings:MaintenanceTimerTriggeredAt"), "hh\\:mm\\:ss", CultureInfo.InvariantCulture);
+        public static IReadOnlyList<TimeSpan> MaintenanceTriggers => GetSectionTimeSpan("ApplicationSettings:MaintenanceTriggers");
 
-        public static TimeSpan JokeTimerTriggeredAt => TimeSpan.ParseExact(config.GetValue<string>("ApplicationSettings:JokeTimerTriggeredAt"), "hh\\:mm\\:ss", CultureInfo.InvariantCulture);
+        public static IReadOnlyList<TimeSpan> JokeTriggers => GetSectionTimeSpan("ApplicationSettings:JokeTriggers");
 
         public static bool FirstUserGetsAdminRights => config.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights");
 
         public static string RzhunemoguApiBaseUrl => config.GetValue<string>("ApplicationSettings:RzhunemoguApiBaseUrl");
 
-        public static IReadOnlyList<string> RzhunemoguApiArguments => config.GetValue<string>("ApplicationSettings:RzhunemoguApiArguments").Split(',', StringSplitOptions.TrimEntries);
+        public static IReadOnlyList<string> RzhunemoguApiArguments => GetSectionString("ApplicationSettings:RzhunemoguApiArguments");
 
         public static string DatabaseConnectionString => config.GetConnectionString("Default");
 
@@ -38,6 +38,33 @@ namespace TelegramBot.TestBot.Helpers
         public static void InitSettings(IConfiguration configuration)
         {
             config = configuration;
+        }
+
+        private static IReadOnlyList<TimeSpan> GetSectionTimeSpan(string key)
+        {
+            if (config is null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
+
+            var result = new List<TimeSpan>();
+
+            foreach (var item in config.GetSection(key).Get<List<string>>())
+            {
+                result.Add(TimeSpan.ParseExact(item, "hh\\:mm\\:ss", CultureInfo.InvariantCulture));
+            }
+
+            return result;
+        }
+
+        private static IReadOnlyList<string> GetSectionString(string key)
+        {
+            if (config is null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
+
+            return config.GetSection(key).Get<List<string>>();
         }
     }
 }
