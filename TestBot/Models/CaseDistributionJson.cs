@@ -9,7 +9,7 @@ namespace TelegramBot.TestBot.Models
     public class CaseDistributionJson
     {
         [JsonProperty("records")]
-        public List<Record> Records { get; init; } = new List<Record>();
+        public IList<Record> Records { get; init; } = new List<Record>();
 
         public class Record
         {
