@@ -456,20 +456,30 @@ namespace TelegramBot.TestBot.Service
                 // generate output message
                 var sb = new StringBuilder();
                 sb.AppendLine($"<b>COVID-19 situation update</b>");
-                sb.AppendLine("Timestamp\tCountry\tCumulativeNumber");
-                sb.Append("<pre>");
+                sb.AppendLine("Timestamp  Country  CumulativeNumber  Increase  Percentage");
 
-                // sort list records first
-                records.OrderByDescending(i => i.CumulativeNumber)
-                    .ToList()
-                    .ForEach(i => sb.AppendLine($"{i.TimeStamp:yyyy-MM-dd}\t{i.CountriesAndTerritories,-12}\t{i.CumulativeNumber:0.00}"));
+                foreach (var record in records)
+                {
+                    bool highligtRecord = AppSettings.CoronaOutputHighlightCountries.Contains(record.CountriesAndTerritories);
 
-                sb.AppendLine("</pre>");
+                    if (highligtRecord)
+                    {
+                        sb.Append($"<b>");
+                    }
+
+                    sb.AppendLine($"{record.TimeStamp:yyyy-MM-dd}  {record.CountriesAndTerritories}  {record.CumulativeNumber:0.00}  {(record.CumulativeNumberIncrease ? "↑" : "↓")}  ({record.CumulativeNumberIncreasePercentage:+0.0;-#.0}%)");
+
+                    if (highligtRecord)
+                    {
+                        sb.Append($"</b>");
+                    }
+                }
+
+                sb.AppendLine();
                 sb.AppendLine($"{records.Count} record(s) in total.");
+                sb.AppendLine($"Data collected on {timestamp:u} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
 
-                await SendTextMessageNoReplyAsync(
-                    chatId,
-                    sb.ToString() + $"Data collected on {timestamp:u} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
+                await SendTextMessageNoReplyAsync(chatId, sb.ToString());
             }
             catch (Exception ex)
             {

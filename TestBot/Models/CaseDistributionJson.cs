@@ -63,6 +63,10 @@ namespace TelegramBot.TestBot.Models
                     return 0;
                 }
             }
+
+            public bool CumulativeNumberIncrease { get; set; }
+
+            public double CumulativeNumberIncreasePercentage { get; set; }
         }
     }
 }

@@ -18,11 +18,13 @@ namespace TelegramBot.TestBot.Helpers
 
         public static string CoronaApiBaseUrl => config.GetValue<string>("ApplicationSettings:CoronaApiBaseUrl");
 
-        public static IReadOnlyList<TimeSpan> SubscriptionTriggers => GetSectionTimeSpan("ApplicationSettings:SubscriptionTriggers");
+        public static IReadOnlyList<string> CoronaOutputHighlightCountries => GetSectionStrings("ApplicationSettings:CoronaOutputHighlightCountries");
 
-        public static IReadOnlyList<TimeSpan> MaintenanceTriggers => GetSectionTimeSpan("ApplicationSettings:MaintenanceTriggers");
+        public static IReadOnlyList<TimeSpan> SubscriptionTriggers => GetSectionTimeSpans("ApplicationSettings:SubscriptionTriggers");
 
-        public static IReadOnlyList<TimeSpan> JokeTriggers => GetSectionTimeSpan("ApplicationSettings:JokeTriggers");
+        public static IReadOnlyList<TimeSpan> MaintenanceTriggers => GetSectionTimeSpans("ApplicationSettings:MaintenanceTriggers");
+
+        public static IReadOnlyList<TimeSpan> JokeTriggers => GetSectionTimeSpans("ApplicationSettings:JokeTriggers");
 
         public static bool FirstUserGetsAdminRights => config.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights");
 
@@ -30,7 +32,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public static string RzhunemoguApiBaseUrl => config.GetValue<string>("ApplicationSettings:RzhunemoguApiBaseUrl");
 
-        public static IReadOnlyList<string> RzhunemoguApiArguments => GetSectionString("ApplicationSettings:RzhunemoguApiArguments");
+        public static IReadOnlyList<string> RzhunemoguApiArguments => GetSectionStrings("ApplicationSettings:RzhunemoguApiArguments");
 
         public static string DatabaseConnectionString => config.GetConnectionString("Default");
 
@@ -42,16 +44,17 @@ namespace TelegramBot.TestBot.Helpers
             config = configuration;
         }
 
-        private static IReadOnlyList<TimeSpan> GetSectionTimeSpan(string key)
+        private static IReadOnlyList<TimeSpan> GetSectionTimeSpans(string key)
         {
             if (config is null)
             {
                 throw new ArgumentNullException(nameof(config));
             }
 
+            var section = config.GetSection(key).Get<List<string>>() ?? new List<string>();
             var result = new List<TimeSpan>();
 
-            foreach (var item in config.GetSection(key).Get<List<string>>())
+            foreach (var item in section)
             {
                 result.Add(TimeSpan.ParseExact(item, "hh\\:mm\\:ss", CultureInfo.InvariantCulture));
             }
@@ -59,14 +62,16 @@ namespace TelegramBot.TestBot.Helpers
             return result;
         }
 
-        private static IReadOnlyList<string> GetSectionString(string key)
+        private static IReadOnlyList<string> GetSectionStrings(string key)
         {
             if (config is null)
             {
                 throw new ArgumentNullException(nameof(config));
             }
 
-            return config.GetSection(key).Get<List<string>>();
+            var section = config.GetSection(key).Get<List<string>>() ?? new List<string>();
+
+            return section;
         }
     }
 }

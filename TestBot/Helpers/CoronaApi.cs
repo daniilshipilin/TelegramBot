@@ -2,17 +2,20 @@ namespace TelegramBot.TestBot.Helpers
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading.Tasks;
     using Newtonsoft.Json;
     using TelegramBot.TestBot.Models;
 
     public class CoronaApi
     {
+        private static readonly StringComparison Sc = StringComparison.InvariantCultureIgnoreCase;
+
         // cashed records
-        private static List<CaseDistributionJson.Record>? caseDistributionRecords;
+        private static IList<CaseDistributionJson.Record>? caseDistributionRecords;
         private static DateTime recordsCachedDateUtc = DateTime.UtcNow;
 
-        public static async Task<(List<CaseDistributionJson.Record>, DateTime)> DownloadCoronaCaseDistributionRecords(bool overrideCachedData)
+        public static async Task<(IList<CaseDistributionJson.Record>, DateTime)> DownloadCoronaCaseDistributionRecords(bool overrideCachedData)
         {
             // download data, if last download operation was done yesterday
             if (caseDistributionRecords is null ||
@@ -55,17 +58,32 @@ namespace TelegramBot.TestBot.Helpers
                 }
 
                 // select the records from specific region
-                var records = jsonObj.Records.FindAll(i => i.ContinentExp.Equals("Europe", StringComparison.InvariantCultureIgnoreCase));
+                var records = jsonObj.Records.FindAll(i => i.ContinentExp.Equals("Europe", Sc));
                 var newCaseDistributionRecords = new List<CaseDistributionJson.Record>();
 
                 foreach (var record in records)
                 {
                     // skip already added country recent record
-                    if (!newCaseDistributionRecords.Exists(x => x.CountriesAndTerritories.Equals(record.CountriesAndTerritories, StringComparison.InvariantCultureIgnoreCase)))
+                    if (!newCaseDistributionRecords.Exists(x => x.CountriesAndTerritories.Equals(record.CountriesAndTerritories, Sc)))
                     {
+                        // compare with cached records
+                        if (caseDistributionRecords is not null)
+                        {
+                            var cachedRecord = caseDistributionRecords.ToList().Find(a => a.CountriesAndTerritories.Equals(record.CountriesAndTerritories, Sc));
+
+                            if (cachedRecord is not null)
+                            {
+                                record.CumulativeNumberIncrease = record.CumulativeNumber > cachedRecord.CumulativeNumber;
+                                record.CumulativeNumberIncreasePercentage = 1 - (cachedRecord.CumulativeNumber / record.CumulativeNumber);
+                            }
+                        }
+
                         newCaseDistributionRecords.Add(record);
                     }
                 }
+
+                // sort list records
+                newCaseDistributionRecords = newCaseDistributionRecords.OrderByDescending(i => i.CumulativeNumber).ToList();
 
                 caseDistributionRecords = newCaseDistributionRecords;
                 recordsCachedDateUtc = DateTime.UtcNow;
