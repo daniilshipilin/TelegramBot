@@ -22,12 +22,8 @@ namespace TelegramBot.TestBot.Service
         private readonly DateTime botStartedDateUtc;
         private readonly ITelegramBotClient botClient;
         private readonly IList<Timer> notificationTimers = new List<Timer>();
-        private readonly object locker = new object();
         private readonly ILogger<HostedService> logger;
         private readonly SqliteDataAccess db;
-
-        private bool commandIsExecuting;
-        private bool overrideCachedData;
 
         public BotService(ILogger<HostedService> logger)
         {
@@ -226,8 +222,9 @@ namespace TelegramBot.TestBot.Service
 
             logger.LogInformation("Sending notifications to subscribed users");
 
-            // make sure, that new data will be fetched during next ExecuteCoronaCommand call
-            overrideCachedData = true;
+            // download latest data first
+            var task = CoronaApi.DownloadCoronaCaseDistributionRecordsAsync(true);
+            task.Wait();
 
             foreach (var user in users)
             {
@@ -334,7 +331,7 @@ namespace TelegramBot.TestBot.Service
                     else if (command.Equals("/corona"))
                     {
                         await SendTextMessageNoReplyAsync(chatId, "Working on it...");
-                        await ExecuteCoronaCommand(chatId);
+                        await ExecuteCoronaCommand(chatId, e.Message.Text);
                     }
                     else if (command.Equals("/fuelcost"))
                     {
@@ -432,52 +429,47 @@ namespace TelegramBot.TestBot.Service
             }
         }
 
-        private async Task ExecuteCoronaCommand(long chatId)
+        private async Task ExecuteCoronaCommand(long chatId, string? args = null)
         {
             logger.LogDebug($"{nameof(ExecuteCoronaCommand)} method called");
 
-            lock (locker)
-            {
-                // wait till previous method call is executed
-                while (commandIsExecuting)
-                {
-                    Task.Delay(100).Wait();
-                }
+            bool overrideCachedData = false;
 
-                commandIsExecuting = true;
+            if (args is not null)
+            {
+                string[] command = args.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                overrideCachedData = (command.Length >= 2) && command[1].Equals("-override");
             }
 
             try
             {
                 var sw = Stopwatch.StartNew();
-                var (records, timestamp) = await CoronaApi.DownloadCoronaCaseDistributionRecords(overrideCachedData);
+                await CoronaApi.DownloadCoronaCaseDistributionRecordsAsync(overrideCachedData);
                 sw.Stop();
 
                 // generate output message
                 var sb = new StringBuilder();
                 sb.AppendLine($"<b>COVID-19 situation update</b>");
-                sb.AppendLine("Timestamp  Country  CumulativeNumber  Increase  Percentage");
+                sb.AppendLine("Position  Timestamp  Country  CumulativeNumber  Dynamics  PercentageIncrease");
+                int position = 0;
 
-                foreach (var record in records)
+                foreach (var record in CoronaApi.CashedRecords)
                 {
-                    bool highligtRecord = AppSettings.CoronaOutputHighlightCountries.Contains(record.CountriesAndTerritories);
+                    position++;
+                    string line = $"{position:00}.  {record.TimeStamp:yyyy-MM-dd}  {record.CountriesAndTerritories}  {record.CumulativeNumber:0.00}  {(record.CumulativeNumberIncrease ? "↑" : "↓")}  ({record.CumulativeNumberIncreasePercentage:+0.0;-#.0}%)";
 
-                    if (highligtRecord)
+                    // highlight current record
+                    if (AppSettings.CoronaOutputHighlightCountries.Contains(record.CountriesAndTerritories))
                     {
-                        sb.Append($"<b>");
+                        line = $"<b>{line}</b>";
                     }
 
-                    sb.AppendLine($"{record.TimeStamp:yyyy-MM-dd}  {record.CountriesAndTerritories}  {record.CumulativeNumber:0.00}  {(record.CumulativeNumberIncrease ? "↑" : "↓")}  ({record.CumulativeNumberIncreasePercentage:+0.0;-#.0}%)");
-
-                    if (highligtRecord)
-                    {
-                        sb.Append($"</b>");
-                    }
+                    sb.AppendLine(line);
                 }
 
                 sb.AppendLine();
-                sb.AppendLine($"{records.Count} record(s) in total.");
-                sb.AppendLine($"Data collected on {timestamp:u} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
+                sb.AppendLine($"{CoronaApi.CashedRecords.Count} record(s) in total.");
+                sb.AppendLine($"Data collected on {CoronaApi.RecordsCachedDateUtc:u} ({sw.ElapsedMilliseconds / 1000D:0.00} sec.)");
 
                 await SendTextMessageNoReplyAsync(chatId, sb.ToString());
             }
@@ -485,10 +477,6 @@ namespace TelegramBot.TestBot.Service
             {
                 logger.LogError(ex, ex.Message);
                 await SendTextMessageNoReplyAsync(chatId, ex.Message);
-            }
-            finally
-            {
-                commandIsExecuting = false;
             }
         }
 

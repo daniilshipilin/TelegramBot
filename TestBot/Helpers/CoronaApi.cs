@@ -10,16 +10,17 @@ namespace TelegramBot.TestBot.Helpers
     public class CoronaApi
     {
         private static readonly StringComparison Sc = StringComparison.InvariantCultureIgnoreCase;
+        private static List<CaseDistributionJson.Record> cachedRecords = new List<CaseDistributionJson.Record>();
 
-        // cashed records
-        private static IList<CaseDistributionJson.Record> cashedRecords = new List<CaseDistributionJson.Record>();
-        private static DateTime recordsCachedDateUtc = DateTime.UtcNow;
+        public static IReadOnlyList<CaseDistributionJson.Record> CashedRecords => cachedRecords;
 
-        public static async Task<(IList<CaseDistributionJson.Record>, DateTime)> DownloadCoronaCaseDistributionRecords(bool overrideCachedData)
+        public static DateTime RecordsCachedDateUtc { get; private set; }
+
+        public static async Task DownloadCoronaCaseDistributionRecordsAsync(bool overrideCachedData)
         {
             // download data, if last download operation was done yesterday
-            if (cashedRecords.Count == 0 ||
-                (DateTime.UtcNow.Date - recordsCachedDateUtc.Date).Days >= 1 ||
+            if (cachedRecords.Count == 0 ||
+                (DateTime.UtcNow - RecordsCachedDateUtc).Days >= 1 ||
                 overrideCachedData)
             {
                 var jsonObj = new CaseDistributionJson();
@@ -66,11 +67,11 @@ namespace TelegramBot.TestBot.Helpers
                     .ToList();
 
                 // compare with cached records
-                if (cashedRecords.Count > 0)
+                if (cachedRecords.Count > 0)
                 {
                     foreach (var record in records)
                     {
-                        var cachedRecord = cashedRecords.ToList().Find(x => x.CountriesAndTerritories.Equals(record.CountriesAndTerritories, Sc));
+                        var cachedRecord = cachedRecords.Find(x => x.CountriesAndTerritories.Equals(record.CountriesAndTerritories, Sc));
 
                         if (cachedRecord is not null)
                         {
@@ -80,11 +81,9 @@ namespace TelegramBot.TestBot.Helpers
                     }
                 }
 
-                cashedRecords = records;
-                recordsCachedDateUtc = DateTime.UtcNow;
+                cachedRecords = records;
+                RecordsCachedDateUtc = DateTime.UtcNow;
             }
-
-            return (cashedRecords, recordsCachedDateUtc);
         }
     }
 }
