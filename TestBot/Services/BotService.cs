@@ -456,7 +456,7 @@ namespace TelegramBot.TestBot.Service
                 foreach (var record in CoronaApi.CashedRecords)
                 {
                     position++;
-                    string line = $"{position:00}.  {record.TimeStamp:yyyy-MM-dd}  {record.CountriesAndTerritories}  {record.CumulativeNumber:0.00}  {(record.CumulativeNumberIncrease ? "↑" : "↓")}  ({record.CumulativeNumberIncreasePercentage:+0.0;-#.0}%)";
+                    string line = $"{position:00}.  {record.TimeStamp:yyyy-MM-dd}  {record.CountriesAndTerritories}  {record.CumulativeNumber:0.00}  {(record.CumulativeNumberIncrease ? "↑" : "↓")}  ({record.CumulativeNumberIncreasePercentage:+0.00;-0.00}%)";
 
                     // highlight current record
                     if (AppSettings.CoronaOutputHighlightCountries.Contains(record.CountriesAndTerritories))
