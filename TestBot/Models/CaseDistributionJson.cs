@@ -14,42 +14,24 @@ namespace TelegramBot.TestBot.Models
         public class Record
         {
             [JsonProperty("dateRep")]
-            public string DateRep { get; init; } = string.Empty;
+            public string ReportDate { get; init; } = string.Empty;
 
-            [JsonProperty("day")]
-            public int Day { get; init; }
+            [JsonProperty("cases_weekly")]
+            public int CasesWeekly { get; init; }
 
-            [JsonProperty("month")]
-            public int Month { get; init; }
-
-            [JsonProperty("year")]
-            public int Year { get; init; }
-
-            [JsonProperty("cases")]
-            public int Cases { get; init; }
-
-            [JsonProperty("deaths")]
-            public int Deaths { get; init; }
+            [JsonProperty("deaths_weekly")]
+            public int DeathsWeekly { get; init; }
 
             [JsonProperty("countriesAndTerritories")]
             public string CountriesAndTerritories { get; init; } = string.Empty;
 
-            [JsonProperty("geoId")]
-            public string GeoId { get; init; } = string.Empty;
-
-            [JsonProperty("countryterritoryCode")]
-            public string CountryterritoryCode { get; init; } = string.Empty;
-
-            [JsonProperty("popData2019")]
-            public int? PopData2019 { get; init; }
-
             [JsonProperty("continentExp")]
             public string ContinentExp { get; init; } = string.Empty;
 
-            [JsonProperty("Cumulative_number_for_14_days_of_COVID-19_cases_per_100000")]
+            [JsonProperty("notification_rate_per_100000_population_14-days")]
             public string CumulativeNumberFor14Days { get; init; } = string.Empty;
 
-            public DateTime TimeStamp => DateTime.ParseExact(DateRep, "dd/MM/yyyy", CultureInfo.InvariantCulture);
+            public DateTime TimeStamp => DateTime.ParseExact(ReportDate, "dd/MM/yyyy", CultureInfo.InvariantCulture);
 
             public double CumulativeNumber
             {
