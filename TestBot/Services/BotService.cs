@@ -450,13 +450,13 @@ namespace TelegramBot.TestBot.Service
                 // generate output message
                 var sb = new StringBuilder();
                 sb.AppendLine($"<b>COVID-19 situation update</b>");
-                sb.AppendLine("Position  Timestamp  Country  CumulativeNumber  Dynamics  PercentageIncrease");
+                sb.AppendLine("Position | Timestamp | Country | CumulativeNumber | CasesWeekly | DeathsWeekly");
                 int position = 0;
 
                 foreach (var record in CoronaApi.CashedRecords)
                 {
                     position++;
-                    string line = $"{position:00}.  {record.TimeStamp:yyyy-MM-dd}  {record.CountriesAndTerritories}  {Math.Round(record.CumulativeNumber, 2)}  {(record.CumulativeNumberIncrease ? "↑" : "↓")}  ({Math.Round(record.CumulativeNumberIncreasePercentage, 2)}%)";
+                    string line = $"{position:00}. | {record.ReportDate} | {record.CountriesAndTerritories.Replace("_", " ")} | {Math.Round(record.CumulativeNumber, 2)} | {record.CasesWeekly} | {record.DeathsWeekly}";
 
                     // highlight current record
                     if (AppSettings.CoronaOutputHighlightCountries.Contains(record.CountriesAndTerritories))

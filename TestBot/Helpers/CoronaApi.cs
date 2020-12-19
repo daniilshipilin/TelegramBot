@@ -66,21 +66,6 @@ namespace TelegramBot.TestBot.Helpers
                     .ThenBy(x => x.CountriesAndTerritories)
                     .ToList();
 
-                // compare with cached records
-                if (cachedRecords.Count > 0)
-                {
-                    foreach (var record in records)
-                    {
-                        var cachedRecord = cachedRecords.Find(x => x.CountriesAndTerritories.Equals(record.CountriesAndTerritories, Sc));
-
-                        if (cachedRecord is not null)
-                        {
-                            record.CumulativeNumberIncrease = record.CumulativeNumber > cachedRecord.CumulativeNumber;
-                            record.CumulativeNumberIncreasePercentage = 1 - (cachedRecord.CumulativeNumber / record.CumulativeNumber);
-                        }
-                    }
-                }
-
                 cachedRecords = records;
                 RecordsCachedDateUtc = DateTime.UtcNow;
             }

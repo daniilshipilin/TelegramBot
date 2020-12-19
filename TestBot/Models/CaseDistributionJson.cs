@@ -1,8 +1,6 @@
 namespace TelegramBot.TestBot.Models
 {
-    using System;
     using System.Collections.Generic;
-    using System.Globalization;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Serialization;
 
@@ -31,8 +29,6 @@ namespace TelegramBot.TestBot.Models
             [JsonProperty("notification_rate_per_100000_population_14-days")]
             public string CumulativeNumberFor14Days { get; init; } = string.Empty;
 
-            public DateTime TimeStamp => DateTime.ParseExact(ReportDate, "dd/MM/yyyy", CultureInfo.InvariantCulture);
-
             public double CumulativeNumber
             {
                 get
@@ -45,10 +41,6 @@ namespace TelegramBot.TestBot.Models
                     return 0;
                 }
             }
-
-            public bool CumulativeNumberIncrease { get; set; }
-
-            public double CumulativeNumberIncreasePercentage { get; set; }
         }
     }
 }
