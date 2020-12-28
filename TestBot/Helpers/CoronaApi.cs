@@ -9,17 +9,24 @@ namespace TelegramBot.TestBot.Helpers
 
     public class CoronaApi
     {
-        private static readonly StringComparison Sc = StringComparison.InvariantCultureIgnoreCase;
         private static List<CaseDistributionJson.Record> cachedRecords = new List<CaseDistributionJson.Record>();
 
-        public static IReadOnlyList<CaseDistributionJson.Record> CashedRecords => cachedRecords;
+        public static IReadOnlyList<CaseDistributionJson.Record> CashedRecords
+        {
+            get => cachedRecords.AsReadOnly();
+
+            private set
+            {
+                cachedRecords = value.ToList();
+            }
+        }
 
         public static DateTime RecordsCachedDateUtc { get; private set; }
 
         public static async Task DownloadCoronaCaseDistributionRecordsAsync(bool overrideCachedData)
         {
             // download data, if last download operation was done yesterday
-            if (cachedRecords.Count == 0 ||
+            if (CashedRecords.Count == 0 ||
                 (DateTime.UtcNow - RecordsCachedDateUtc).Days >= 1 ||
                 overrideCachedData)
             {
@@ -59,14 +66,14 @@ namespace TelegramBot.TestBot.Helpers
 
                 // filter records
                 var records = jsonObj.Records
-                    .Where(x => x.ContinentExp.Equals("Europe", Sc))
+                    .Where(x => x.ContinentExp.Equals("Europe"))
                     .GroupBy(x => x.CountriesAndTerritories)
                     .Select(x => x.First())
                     .OrderByDescending(x => x.CumulativeNumber)
                     .ThenBy(x => x.CountriesAndTerritories)
                     .ToList();
 
-                cachedRecords = records;
+                CashedRecords = records;
                 RecordsCachedDateUtc = DateTime.UtcNow;
             }
         }
