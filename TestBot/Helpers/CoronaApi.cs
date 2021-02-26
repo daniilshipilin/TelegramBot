@@ -9,9 +9,9 @@ namespace TelegramBot.TestBot.Helpers
 
     public class CoronaApi
     {
-        private static List<CaseDistributionJson.Record> cachedRecords = new List<CaseDistributionJson.Record>();
+        private static List<CaseDistributionJson> cachedRecords = new List<CaseDistributionJson>();
 
-        public static IReadOnlyList<CaseDistributionJson.Record> CashedRecords
+        public static IReadOnlyList<CaseDistributionJson> CashedRecords
         {
             get => cachedRecords.AsReadOnly();
 
@@ -30,7 +30,7 @@ namespace TelegramBot.TestBot.Helpers
                 (DateTime.UtcNow - RecordsCachedDateUtc).Days >= 1 ||
                 overrideCachedData)
             {
-                var jsonObj = new CaseDistributionJson();
+                var records = new List<CaseDistributionJson>();
                 using var response = await ApiHttpClient.Client.GetAsync(AppSettings.CoronaApiBaseUrl);
 
                 if (response.IsSuccessStatusCode)
@@ -51,7 +51,7 @@ namespace TelegramBot.TestBot.Helpers
                     };
 
                     // deserialize received json
-                    jsonObj = JsonConvert.DeserializeObject<CaseDistributionJson>(json, settings);
+                    records = JsonConvert.DeserializeObject<List<CaseDistributionJson>>(json, settings);
 
                     if (errors.Count > 0)
                     {
@@ -64,16 +64,15 @@ namespace TelegramBot.TestBot.Helpers
                     throw new Exception(response.ReasonPhrase);
                 }
 
-                // filter records
-                var records = jsonObj.Records
-                    .Where(x => x.ContinentExp.Equals("Europe"))
-                    .GroupBy(x => x.CountriesAndTerritories)
-                    .Select(x => x.First())
-                    .OrderByDescending(x => x.CumulativeNumber)
-                    .ThenBy(x => x.CountriesAndTerritories)
+                // filter records before assigning
+                CashedRecords = records
+                    .Where(x => x.Continent.Equals("Europe"))
+                    .GroupBy(x => x.Country)
+                    .Select(x => x.Last())
+                    .OrderByDescending(x => x.Rate14Day)
+                    .ThenBy(x => x.Country)
                     .ToList();
 
-                CashedRecords = records;
                 RecordsCachedDateUtc = DateTime.UtcNow;
             }
         }

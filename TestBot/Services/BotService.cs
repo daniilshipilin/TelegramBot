@@ -449,17 +449,17 @@ namespace TelegramBot.TestBot.Service
 
                 // generate output message
                 var sb = new StringBuilder();
-                sb.AppendLine($"<b>COVID-19 situation update</b>");
-                sb.AppendLine("Position | Timestamp | Country | CumulativeNumber | CasesWeekly | DeathsWeekly");
+                sb.AppendLine($"<b>14-day notification rate of new COVID-19 cases and deaths</b>");
+                sb.AppendLine("Position | YearWeek | Country | Rate14Day | WeeklyCount | CumulativeCount");
                 int position = 0;
 
                 foreach (var record in CoronaApi.CashedRecords)
                 {
                     position++;
-                    string line = $"{position:00}. | {record.ReportDate} | {record.CountriesAndTerritories.Replace("_", " ")} | {Math.Round(record.CumulativeNumber, 2)} | {record.CasesWeekly} | {record.DeathsWeekly}";
+                    string line = $"{position:00}. | {record.YearWeek} | {record.Country.Replace("_", " ")} | {Math.Round(record.Rate14Day, 2)} | {record.WeeklyCount} | {record.CumulativeCount}";
 
                     // highlight current record
-                    if (AppSettings.CoronaOutputHighlightCountries.Contains(record.CountriesAndTerritories))
+                    if (AppSettings.CoronaOutputHighlightCountries.Contains(record.Country))
                     {
                         line = $"<b>{line}</b>";
                     }
