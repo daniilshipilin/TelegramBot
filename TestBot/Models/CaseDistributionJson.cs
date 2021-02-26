@@ -14,10 +14,10 @@ namespace TelegramBot.TestBot.Models
             [JsonProperty("dateRep")]
             public string ReportDate { get; init; } = string.Empty;
 
-            [JsonProperty("cases_weekly")]
+            [JsonProperty("cases")]
             public int CasesWeekly { get; init; }
 
-            [JsonProperty("deaths_weekly")]
+            [JsonProperty("deaths")]
             public int DeathsWeekly { get; init; }
 
             [JsonProperty("countriesAndTerritories")]
@@ -26,7 +26,7 @@ namespace TelegramBot.TestBot.Models
             [JsonProperty("continentExp")]
             public string ContinentExp { get; init; } = string.Empty;
 
-            [JsonProperty("notification_rate_per_100000_population_14-days")]
+            [JsonProperty("Cumulative_number_for_14_days_of_COVID-19_cases_per_100000")]
             public string CumulativeNumberFor14Days { get; init; } = string.Empty;
 
             public double CumulativeNumber
