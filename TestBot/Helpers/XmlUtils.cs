@@ -21,7 +21,7 @@ namespace TelegramBot.TestBot.Helpers
             var serializer = new XmlSerializer(typeof(T));
             using var reader = new StringReader(objectData);
 
-            return (T)serializer.Deserialize(reader);
+            return (T?)serializer.Deserialize(reader);
         }
     }
 }
