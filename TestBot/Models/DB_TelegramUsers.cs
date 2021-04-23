@@ -5,7 +5,7 @@ namespace TelegramBot.TestBot.Models
 
     public class DB_TelegramUsers
     {
-        public int UserId { get; init; }
+        public int Id { get; init; }
 
         public long ChatId { get; init; }
 
@@ -17,7 +17,7 @@ namespace TelegramBot.TestBot.Models
 
         public string DateRegisteredUtc { get; init; } = DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture);
 
-        public bool UserIsSubscribed { get; init; }
+        public bool UserIsSubscribedToCoronaUpdates { get; init; }
 
         public bool UserIsAdmin { get; init; }
 

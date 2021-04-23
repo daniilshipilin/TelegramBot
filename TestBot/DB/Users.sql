@@ -13,10 +13,13 @@ CREATE TABLE IF NOT EXISTS "TelegramUsers" (
 	"LastName"	TEXT,
 	"UserName"	TEXT,
 	"DateRegisteredUtc"	TEXT NOT NULL,
-	"UserIsSubscribed"	INTEGER NOT NULL,
+	"UserIsSubscribedToCoronaUpdates"	INTEGER NOT NULL,
 	"UserIsAdmin"	INTEGER NOT NULL,
 	"UserLocationLatitude"	REAL,
 	"UserLocationLongitude"	REAL
 );
-INSERT INTO "Settings" VALUES (1,'DB_VERSION','7');
+CREATE UNIQUE INDEX "IndexChatId" ON "TelegramUsers" (
+	"ChatId"
+);
+INSERT INTO "Settings" VALUES (1,'DB_VERSION','8');
 COMMIT;

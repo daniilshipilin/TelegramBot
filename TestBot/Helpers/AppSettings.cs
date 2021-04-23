@@ -20,7 +20,7 @@ namespace TelegramBot.TestBot.Helpers
 
         public static IReadOnlyList<string> CoronaOutputHighlightCountries => GetSectionStrings("ApplicationSettings:CoronaOutputHighlightCountries");
 
-        public static IReadOnlyList<TimeSpan> SubscriptionTriggers => GetSectionTimeSpans("ApplicationSettings:SubscriptionTriggers");
+        public static IReadOnlyList<TimeSpan> CoronaUpdateTriggers => GetSectionTimeSpans("ApplicationSettings:CoronaUpdateTriggers");
 
         public static IReadOnlyList<TimeSpan> MaintenanceTriggers => GetSectionTimeSpans("ApplicationSettings:MaintenanceTriggers");
 
@@ -29,6 +29,8 @@ namespace TelegramBot.TestBot.Helpers
         public static bool FirstUserGetsAdminRights => config.GetValue<bool>("ApplicationSettings:FirstUserGetsAdminRights");
 
         public static bool PermissionDeniedForNewUsers => config.GetValue<bool>("ApplicationSettings:PermissionDeniedForNewUsers");
+
+        public static bool SendServiceStartedStoppedMessageToAdminUsers => config.GetValue<bool>("ApplicationSettings:SendServiceStartedStoppedMessageToAdminUsers");
 
         public static string RzhunemoguApiBaseUrl => config.GetValue<string>("ApplicationSettings:RzhunemoguApiBaseUrl");
 
@@ -39,9 +41,12 @@ namespace TelegramBot.TestBot.Helpers
         /// <summary>
         /// Initializes application settings.
         /// </summary>
-        public static void InitSettings(IConfiguration configuration)
+        public static void InitAppSettings(IConfiguration configuration)
         {
-            config = configuration;
+            if (config is null)
+            {
+                config = configuration;
+            }
         }
 
         private static IReadOnlyList<TimeSpan> GetSectionTimeSpans(string key)

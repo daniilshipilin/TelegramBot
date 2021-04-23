@@ -27,6 +27,12 @@ namespace TelegramBot.TestBot.Service
             this.environment = environment;
             this.logger = logger;
             this.appLifetime = appLifetime;
+
+            // setting Logger static class instance
+            Logger.InitLogger(logger);
+
+            // initialize app settings
+            AppSettings.InitAppSettings(configuration);
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -56,8 +62,7 @@ namespace TelegramBot.TestBot.Service
 
             try
             {
-                AppSettings.InitSettings(configuration);
-                botService = new BotService(logger);
+                botService = new BotService();
                 botService.PrintBotInfo();
                 botService.StartReceiving();
             }

@@ -19,7 +19,7 @@ namespace TelegramBot.TestBot.Helpers
             TestDBAccess();
         }
 
-        public int DBVersion => 7;
+        public int DBVersion => 8;
 
         public string ConnectionString { get; }
 
@@ -112,12 +112,12 @@ namespace TelegramBot.TestBot.Helpers
             return db.Query<DB_TelegramUsers>(sql).ToList();
         }
 
-        public IList<DB_TelegramUsers> Select_TelegramUsersIsSubscribed()
+        public IList<DB_TelegramUsers> Select_TelegramUsersIsSubscribedToCoronaUpdates()
         {
             using var db = new SqliteConnection(ConnectionString);
             string sql = "SELECT * " +
                          "FROM TelegramUsers " +
-                         $"WHERE UserIsSubscribed = 1;";
+                         $"WHERE UserIsSubscribedToCoronaUpdates = 1;";
 
             return db.Query<DB_TelegramUsers>(sql).ToList();
         }
@@ -165,8 +165,8 @@ namespace TelegramBot.TestBot.Helpers
         {
             using var db = new SqliteConnection(ConnectionString);
 
-            string sql = "INSERT INTO TelegramUsers (ChatId, FirstName, LastName, UserName, DateRegisteredUtc, UserIsSubscribed, UserIsAdmin, UserLocationLatitude, UserLocationLongitude) " +
-                         "VALUES (@ChatId, @FirstName, @LastName, @UserName, @DateRegisteredUtc, @UserIsSubscribed, @UserIsAdmin, @UserLocationLatitude, @UserLocationLongitude);";
+            string sql = "INSERT INTO TelegramUsers (ChatId, FirstName, LastName, UserName, DateRegisteredUtc, UserIsSubscribedToCoronaUpdates, UserIsAdmin, UserLocationLatitude, UserLocationLongitude) " +
+                         "VALUES (@ChatId, @FirstName, @LastName, @UserName, @DateRegisteredUtc, @UserIsSubscribedToCoronaUpdates, @UserIsAdmin, @UserLocationLatitude, @UserLocationLongitude);";
 
             db.Execute(sql, user);
         }
@@ -176,7 +176,7 @@ namespace TelegramBot.TestBot.Helpers
             using var db = new SqliteConnection(ConnectionString);
 
             string sql = "UPDATE TelegramUsers " +
-                         "SET FirstName = @FirstName, LastName = @LastName, UserName = @UserName, UserIsSubscribed = @UserIsSubscribed, UserIsAdmin = @UserIsAdmin, UserLocationLatitude = @UserLocationLatitude, UserLocationLongitude = @UserLocationLongitude " +
+                         "SET FirstName = @FirstName, LastName = @LastName, UserName = @UserName, UserIsSubscribedToCoronaUpdates = @UserIsSubscribedToCoronaUpdates, UserIsAdmin = @UserIsAdmin, UserLocationLatitude = @UserLocationLatitude, UserLocationLongitude = @UserLocationLongitude " +
                          "WHERE ChatId = @ChatId;";
 
             db.Execute(sql, user);

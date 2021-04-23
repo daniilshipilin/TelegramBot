@@ -4,7 +4,7 @@ namespace TelegramBot.TestBot.Helpers
 
     public class FuelcostCalculator
     {
-        public FuelcostCalculator(double tripDistance, double fuelEfficiency, decimal fuelPriceLiter)
+        public FuelcostCalculator(double tripDistance, double fuelEfficiency, decimal fuelPriceLiter, string currency = Currencies.Euro)
         {
             if (tripDistance <= 0)
             {
@@ -24,13 +24,16 @@ namespace TelegramBot.TestBot.Helpers
             TripDistance = tripDistance;
             FuelEfficiency = fuelEfficiency;
             FuelPriceLiter = fuelPriceLiter;
+            Currency = currency;
         }
 
-        public double TripDistance { get; private set; }
+        public double TripDistance { get; }
 
-        public double FuelEfficiency { get; private set; }
+        public double FuelEfficiency { get; }
 
-        public decimal FuelPriceLiter { get; private set; }
+        public decimal FuelPriceLiter { get; }
+
+        public string Currency { get; }
 
         public double TripFuelUsedLiters => (TripDistance / 100) * FuelEfficiency;
 
@@ -39,8 +42,15 @@ namespace TelegramBot.TestBot.Helpers
         public string TripCostFormatted =>
                 $"<b>Distance:</b> {TripDistance:0.00} km\n" +
                 $"<b>Avg. fuel consumption:</b> {FuelEfficiency:0.00} l/100km\n" +
-                $"<b>Fuel cost:</b> {FuelPriceLiter:0.00} EUR/l\n" +
+                $"<b>Fuel cost:</b> {FuelPriceLiter:0.00} {Currency}/l\n" +
                 $"This trip will require <b>{TripFuelUsedLiters:0.00}</b> liter(s) of fuel, " +
-                $"which amounts to a fuel cost of <b>{TripCost:0.00}</b> EUR";
+                $"which amounts to a fuel cost of <b>{TripCost:0.00}</b> {Currency}";
+
+        public struct Currencies
+        {
+            public const string Euro = "EUR";
+            public const string UsDollar = "USD";
+            public const string BritishPound = "GBP";
+        }
     }
 }

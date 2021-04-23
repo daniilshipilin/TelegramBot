@@ -19,6 +19,11 @@ namespace TelegramBot.TestBot.Helpers
                     throw new NullReferenceException(nameof(fileName));
                 }
 
+                if (!Directory.Exists(AppSettings.PicsDirectory))
+                {
+                    Directory.CreateDirectory(AppSettings.PicsDirectory);
+                }
+
                 string filePath = Path.Combine(AppSettings.PicsDirectory, fileName);
                 using var sr = await response.Content.ReadAsStreamAsync();
 

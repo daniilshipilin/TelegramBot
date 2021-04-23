@@ -19,30 +19,26 @@ namespace TelegramBot.TestBot.Service
 
     public class BotService
     {
-        private readonly DateTime botStartedDateUtc;
-        private readonly ITelegramBotClient botClient;
         private readonly IList<Timer> notificationTimers = new List<Timer>();
         private readonly ILogger<HostedService> logger;
-        private readonly SqliteDataAccess db;
+        private readonly ITelegramBotClient bot;
+        private readonly IDataAccess db;
+        private readonly DateTime clientStartedDateUtc;
 
-        public BotService(ILogger<HostedService> logger)
+        public BotService()
         {
-            this.logger = logger;
-            botStartedDateUtc = DateTime.UtcNow;
+            logger = Logger.GetInstance();
+            bot = Bot.GetInstance();
+            db = DataAccess.GetInstance();
 
-            botClient = new TelegramBotClient(AppSettings.TelegramBotToken)
-            {
-                Timeout = new TimeSpan(0, 0, 60),
-            };
-
-            db = new SqliteDataAccess(AppSettings.DatabaseConnectionString);
+            clientStartedDateUtc = DateTime.UtcNow;
 
             SetupTimers();
         }
 
         public void PrintBotInfo()
         {
-            var botInfo = botClient.GetMeAsync().Result;
+            var botInfo = bot.GetMeAsync().Result;
             logger.LogInformation($"TelegramBot v{GitVersionInformation.InformationalVersion}");
             logger.LogInformation($"Id: {botInfo.Id}\tName: '{botInfo.FirstName}'\tUsername: '{botInfo.Username}'");
             int users = db.Count_TelegramUsers();
@@ -54,17 +50,25 @@ namespace TelegramBot.TestBot.Service
             logger.LogDebug($"{nameof(StartReceiving)} method called");
 
             SubscribeBotClientEvents();
-            botClient.StartReceiving();
-            NotifyAdministrators($"'{botClient.GetMeAsync().Result.FirstName}' started receiving at {DateTime.UtcNow:u}");
+            bot.StartReceiving();
+
+            if (AppSettings.SendServiceStartedStoppedMessageToAdminUsers)
+            {
+                NotifyAdministrators($"'{bot.GetMeAsync().Result.FirstName}' started receiving at {DateTime.UtcNow:u}");
+            }
         }
 
         public void StopReceiving()
         {
             logger.LogDebug($"{nameof(StopReceiving)} method called");
 
-            NotifyAdministrators($"'{botClient.GetMeAsync().Result.FirstName}' stopped receiving at {DateTime.UtcNow:u}");
+            if (AppSettings.SendServiceStartedStoppedMessageToAdminUsers)
+            {
+                NotifyAdministrators($"'{bot.GetMeAsync().Result.FirstName}' stopped receiving at {DateTime.UtcNow:u}");
+            }
+
             UnSubscribeBotClientEvents();
-            botClient.StopReceiving();
+            bot.StopReceiving();
         }
 
         private static double CalculateInterval(TimeSpan trigger)
@@ -79,45 +83,27 @@ namespace TelegramBot.TestBot.Service
             return diffMs;
         }
 
-        private static IEnumerable<string> GetFiles(string path, string searchPatternExpression, SearchOption searchOption)
-        {
-            var reSearchPattern = new Regex(searchPatternExpression, RegexOptions.IgnoreCase);
+        private static string GetBotInfo() =>
+            $"TelegramBot v{GitVersionInformation.SemVer} made by @daniilshipilin.\n" +
+            "This bot supports following commands:\n" +
+            "  <b>/start</b> - subscribe to receive messages from the bot;\n" +
+            "  <b>/stop</b> - stop receiving messages from the bot;\n" +
+            "  <b>/help</b> - display help info;\n" +
+            "  <b>/uptime</b> - display service uptime info;\n" +
+            "  <b>/date</b> - show current date in UTC format;\n" +
+            "  <b>/pic</b> - receive random picture;\n" +
+            "  <b>/corona</b> - get current corona situation update;\n" +
+            "  <b>/joke</b> - get random joke;\n" +
+            "  <b>/fuelcost</b> - fuel consumption calculator.";
 
-            return Directory.EnumerateFiles(path, "*", searchOption).Where(file => reSearchPattern.IsMatch(Path.GetExtension(file)));
-        }
-
-        private static double GetTotalAllocatedMemoryInMBytes()
-        {
-            using var p = Process.GetCurrentProcess();
-
-            return p.PrivateMemorySize64 / 1048576D;
-        }
-
-        private static string GetBotInfo()
-        {
-            return $"TelegramBot v{GitVersionInformation.SemVer} made by @daniilshipilin.\n" +
-                   "This bot supports following commands:\n" +
-                   "  <b>/start</b> - subscribe to receive messages from the bot;\n" +
-                   "  <b>/stop</b> - stop receiving messages from the bot;\n" +
-                   "  <b>/help</b> - display help info;\n" +
-                   "  <b>/uptime</b> - display service uptime info;\n" +
-                   "  <b>/date</b> - show current date in UTC format;\n" +
-                   "  <b>/pic</b> - receive random picture;\n" +
-                   "  <b>/corona</b> - get current corona situation update;\n" +
-                   "  <b>/joke</b> - get random joke;\n" +
-                   "  <b>/fuelcost</b> - fuel consumption calculator.";
-        }
-
-        private static string GetPermissionDeniedMessage()
-        {
-            return "<pre>" +
-                "###################################\n" +
-                "#         RESTRICTED AREA         #\n" +
-                "#    NO UNAUTHORIZED PERSONNEL    #\n" +
-                "#       BEYOUND THIS POINT        #\n" +
-                "###################################" +
-                "</pre>";
-        }
+        private static string GetPermissionDeniedMessage() =>
+            "<pre>" +
+            "###################################\n" +
+            "#         RESTRICTED AREA         #\n" +
+            "#    NO UNAUTHORIZED PERSONNEL    #\n" +
+            "#       BEYOUND THIS POINT        #\n" +
+            "###################################" +
+            "</pre>";
 
         private static void ResetTimerInterval(Timer timer)
         {
@@ -139,36 +125,51 @@ namespace TelegramBot.TestBot.Service
             }
         }
 
+        private static IEnumerable<string> GetFiles(string path, string searchPatternExpression, SearchOption searchOption)
+        {
+            var reSearchPattern = new Regex(searchPatternExpression, RegexOptions.IgnoreCase);
+
+            return Directory.EnumerateFiles(path, "*", searchOption)
+                .Where(file => reSearchPattern.IsMatch(Path.GetExtension(file)));
+        }
+
+        private static double GetTotalAllocatedMemoryInMBytes()
+        {
+            using var p = Process.GetCurrentProcess();
+
+            return p.PrivateMemorySize64 / 1048576D;
+        }
+
         private void SetupTimers()
         {
-            CreateTimers(AppSettings.SubscriptionTriggers, SubscribedUsersNotifyEvent, notificationTimers);
+            CreateTimers(AppSettings.CoronaUpdateTriggers, CoronaUpdateEvent, notificationTimers);
             CreateTimers(AppSettings.MaintenanceTriggers, MaintenanceEvent, notificationTimers);
             CreateTimers(AppSettings.JokeTriggers, JokeEvent, notificationTimers);
         }
 
         private void SubscribeBotClientEvents()
         {
-            botClient.OnMessage += OnMessageEvent;
-            botClient.OnMessageEdited += OnMessageEditedEvent;
-            botClient.OnUpdate += OnUpdateEvent;
-            botClient.OnReceiveError += OnReceiveErrorEvent;
+            bot.OnMessage += OnMessageEvent;
+            bot.OnMessageEdited += OnMessageEditedEvent;
+            bot.OnUpdate += OnUpdateEvent;
+            bot.OnReceiveError += OnReceiveErrorEvent;
         }
 
         private void UnSubscribeBotClientEvents()
         {
-            botClient.OnMessage -= OnMessageEvent;
-            botClient.OnMessageEdited -= OnMessageEditedEvent;
-            botClient.OnUpdate -= OnUpdateEvent;
-            botClient.OnReceiveError -= OnReceiveErrorEvent;
+            bot.OnMessage -= OnMessageEvent;
+            bot.OnMessageEdited -= OnMessageEditedEvent;
+            bot.OnUpdate -= OnUpdateEvent;
+            bot.OnReceiveError -= OnReceiveErrorEvent;
         }
 
-        private void SubscribedUsersNotifyEvent(object sender, ElapsedEventArgs e)
+        private void CoronaUpdateEvent(object sender, ElapsedEventArgs e)
         {
             ResetTimerInterval((Timer)sender);
 
-            logger.LogDebug($"{nameof(SubscribedUsersNotifyEvent)} method called");
+            logger.LogDebug($"{nameof(CoronaUpdateEvent)} method called");
 
-            NotifySubscribedUsers();
+            NotifySubscribedUsersCoronaUpdate();
         }
 
         private void MaintenanceEvent(object sender, ElapsedEventArgs e)
@@ -194,7 +195,7 @@ namespace TelegramBot.TestBot.Service
 
         private void SendJokesToSubscribedUsers()
         {
-            var users = db.Select_TelegramUsersIsSubscribed();
+            var users = db.Select_TelegramUsersIsSubscribedToCoronaUpdates();
 
             if (users.Count == 0)
             {
@@ -210,13 +211,13 @@ namespace TelegramBot.TestBot.Service
             }
         }
 
-        private void NotifySubscribedUsers()
+        private void NotifySubscribedUsersCoronaUpdate()
         {
-            var users = db.Select_TelegramUsersIsSubscribed();
+            var users = db.Select_TelegramUsersIsSubscribedToCoronaUpdates();
 
             if (users.Count == 0)
             {
-                logger.LogInformation($"{nameof(NotifySubscribedUsers)} - No users to notify");
+                logger.LogInformation($"{nameof(NotifySubscribedUsersCoronaUpdate)} - No users to notify");
                 return;
             }
 
@@ -250,126 +251,11 @@ namespace TelegramBot.TestBot.Service
             }
         }
 
-        private async void OnMessageEvent(object? sender, MessageEventArgs e)
+        private void OnMessageEvent(object? sender, MessageEventArgs e)
         {
             logger.LogInformation($"Received message from user: '{e.Message.From.Username}'  id: {e.Message.Chat.Id}  type: {e.Message.Type}");
 
-            try
-            {
-                long chatId = e.Message.Chat.Id;
-                DB_TelegramUsers? user = db.Select_TelegramUsers(chatId);
-
-                if (user is null && AppSettings.PermissionDeniedForNewUsers)
-                {
-                    string message = $"Permission denied for user id {chatId}";
-                    logger.LogInformation(message);
-                    NotifyAdministrators(message);
-                    await SendTextMessageNoReplyAsync(chatId, GetPermissionDeniedMessage());
-                    return;
-                }
-
-                if (e.Message.Type == MessageType.Text)
-                {
-                    // extract only first argument from message text
-                    string command = e.Message.Text.Split(' ')[0].ToLower();
-
-                    // main init command
-                    if (command.Equals("/start"))
-                    {
-                        await SendTextMessageNoReplyAsync(
-                            chatId,
-                            $"Hi, {e.Message.From.FirstName} {e.Message.From.LastName} (user: '{e.Message.From.Username}').");
-
-                        if (user is null)
-                        {
-                            var newUser = new DB_TelegramUsers
-                            {
-                                ChatId = chatId,
-                                FirstName = e.Message.Chat.FirstName,
-                                LastName = e.Message.Chat.LastName,
-                                UserName = e.Message.Chat.Username,
-                                UserIsSubscribed = true,
-
-                                // check if new user must have admin option set to true
-                                UserIsAdmin = db.LastIndex_TelegramUsers() is null && AppSettings.FirstUserGetsAdminRights,
-                            };
-
-                            db.Insert_TelegramUsers(newUser);
-                            logger.LogInformation($"User {newUser.ChatId} added to the db");
-                            await SendTextMessageNoReplyAsync(chatId, "You have successfully subscribed!");
-                        }
-
-                        await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
-                    }
-                    else if (user is null)
-                    {
-                        // special case - non existing users can only call /start command
-                        await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
-                    }
-                    else if (command.Equals("/help"))
-                    {
-                        await SendTextMessageNoReplyAsync(chatId, GetBotInfo());
-                    }
-                    else if (command.Equals("/stop"))
-                    {
-                        db.Delete_TelegramUsers(user);
-                        logger.LogInformation($"{user.ChatId} user removed from the db");
-                        await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed!");
-                    }
-                    else if (command.Equals("/uptime"))
-                    {
-                        await SendTextMessageNoReplyAsync(chatId, GetBotUptime());
-                    }
-                    else if (command.Equals("/date"))
-                    {
-                        await SendTextMessageNoReplyAsync(chatId, DateTime.UtcNow.ToString("u"));
-                    }
-                    else if (command.Equals("/pic"))
-                    {
-                        await ExecutePictureCommand(chatId);
-                    }
-                    else if (command.Equals("/corona"))
-                    {
-                        await SendTextMessageNoReplyAsync(chatId, "Working on it...");
-                        await ExecuteCoronaCommand(chatId, e.Message.Text);
-                    }
-                    else if (command.Equals("/fuelcost"))
-                    {
-                        await ExecuteFuelcostCommand(chatId, e.Message.Text);
-                    }
-                    else if (command.Equals("/joke"))
-                    {
-                        await ExecuteJokeCommand(chatId);
-                    }
-                    else
-                    {
-                        await SendTextMessageAsync(
-                                chatId,
-                                e.Message.MessageId,
-                                "Unknown command detected.\nType in /help to display help info");
-                    }
-                }
-                else if (e.Message.Type == MessageType.Location)
-                {
-                    if (user is null)
-                    {
-                        await SendTextMessageNoReplyAsync(chatId, "New user(s) should call /start command first");
-                        return;
-                    }
-
-                    user.UserLocationLatitude = e.Message.Location.Latitude;
-                    user.UserLocationLongitude = e.Message.Location.Longitude;
-                    db.Update_TelegramUsers(user);
-
-                    await SendTextMessageNoReplyAsync(
-                        chatId,
-                        $"Your current location has been updated!\nLatitude: <b>{e.Message.Location.Latitude}</b>  Longitude: <b>{e.Message.Location.Longitude}</b>");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, ex.Message);
-            }
+            Task.Run(async () => await ProcessCommand(e));
         }
 
         private void OnMessageEditedEvent(object? sender, MessageEventArgs e)
@@ -386,6 +272,146 @@ namespace TelegramBot.TestBot.Service
         private void OnReceiveErrorEvent(object? sender, ReceiveErrorEventArgs e)
         {
             logger.LogDebug($"{nameof(OnReceiveErrorEvent)} method called");
+        }
+
+        private async Task ProcessCommand(MessageEventArgs e)
+        {
+            try
+            {
+                var user = db.Select_TelegramUsers(e.Message.Chat.Id);
+
+                // special case: access denied message
+                if (user is null && AppSettings.PermissionDeniedForNewUsers)
+                {
+                    string message = $"Permission denied for user id {e.Message.Chat.Id}";
+                    logger.LogInformation(message);
+                    NotifyAdministrators(message);
+                    await SendTextMessageNoReplyAsync(e.Message.Chat.Id, GetPermissionDeniedMessage());
+                    return;
+                }
+
+                if (e.Message.Type == MessageType.Text)
+                {
+                    // extract only first argument from message text
+                    string command = e.Message.Text.Split(' ')[0].ToLower();
+
+                    // main init command
+                    if (command.Equals("/start"))
+                    {
+                        await ExecuteStartCommand(e, user);
+                    }
+                    else if (user is null)
+                    {
+                        // special case - non existing users can only call /start command
+                        await SendTextMessageNoReplyAsync(e.Message.Chat.Id, "New user(s) should call /start command first");
+                    }
+                    else if (command.Equals("/help"))
+                    {
+                        await SendTextMessageNoReplyAsync(e.Message.Chat.Id, GetBotInfo());
+                    }
+                    else if (command.Equals("/stop"))
+                    {
+                        await ExecuteStopCommand(e.Message.Chat.Id, user);
+                    }
+                    else if (command.Equals("/uptime"))
+                    {
+                        await SendTextMessageNoReplyAsync(e.Message.Chat.Id, GetBotUptime());
+                    }
+                    else if (command.Equals("/date"))
+                    {
+                        await SendTextMessageNoReplyAsync(e.Message.Chat.Id, DateTime.UtcNow.ToString("u"));
+                    }
+                    else if (command.Equals("/pic"))
+                    {
+                        await ExecutePictureCommand(e.Message.Chat.Id);
+                    }
+                    else if (command.Equals("/corona"))
+                    {
+                        await SendTextMessageNoReplyAsync(e.Message.Chat.Id, "Working on it...");
+                        await ExecuteCoronaCommand(e.Message.Chat.Id, e.Message.Text);
+                    }
+                    else if (command.Equals("/fuelcost"))
+                    {
+                        await ExecuteFuelcostCommand(e.Message.Chat.Id, e.Message.Text);
+                    }
+                    else if (command.Equals("/joke"))
+                    {
+                        await ExecuteJokeCommand(e.Message.Chat.Id);
+                    }
+                    else
+                    {
+                        await SendTextMessageAsync(
+                                e.Message.Chat.Id,
+                                e.Message.MessageId,
+                                "Unknown command detected.\nType in /help to display help info");
+                    }
+                }
+                else if (e.Message.Type == MessageType.Location)
+                {
+                    if (user is null)
+                    {
+                        await SendTextMessageNoReplyAsync(e.Message.Chat.Id, "New user(s) should call /start command first");
+                        return;
+                    }
+
+                    user.UserLocationLatitude = e.Message.Location.Latitude;
+                    user.UserLocationLongitude = e.Message.Location.Longitude;
+                    db.Update_TelegramUsers(user);
+
+                    await SendTextMessageNoReplyAsync(
+                        e.Message.Chat.Id,
+                        $"Your current location has been updated!\nLatitude: <b>{e.Message.Location.Latitude}</b>  Longitude: <b>{e.Message.Location.Longitude}</b>");
+                }
+                else
+                {
+                    logger.LogInformation($"Unsupported message type: {e.Message.Type}");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, ex.Message);
+            }
+        }
+
+        private async Task ExecuteStartCommand(MessageEventArgs e, DB_TelegramUsers? user)
+        {
+            await SendTextMessageNoReplyAsync(
+                                    e.Message.Chat.Id,
+                                    $"Hi, {e.Message.From.FirstName} {e.Message.From.LastName} (user: '{e.Message.From.Username}').");
+
+            // create new user
+            if (user is null)
+            {
+                var newUser = new DB_TelegramUsers
+                {
+                    ChatId = e.Message.Chat.Id,
+                    FirstName = e.Message.Chat.FirstName,
+                    LastName = e.Message.Chat.LastName,
+                    UserName = e.Message.Chat.Username,
+                    UserIsSubscribedToCoronaUpdates = true,
+
+                    // check if new user must have admin option set to true
+                    UserIsAdmin = db.LastIndex_TelegramUsers() is null && AppSettings.FirstUserGetsAdminRights,
+                };
+
+                db.Insert_TelegramUsers(newUser);
+                logger.LogInformation($"User {newUser.ChatId} added to the db");
+                await SendTextMessageNoReplyAsync(e.Message.Chat.Id, "You have successfully subscribed!");
+            }
+
+            await SendTextMessageNoReplyAsync(e.Message.Chat.Id, GetBotInfo());
+        }
+
+        private async Task ExecuteStopCommand(long chatId, DB_TelegramUsers? user)
+        {
+            if (user is null)
+            {
+                return;
+            }
+
+            db.Delete_TelegramUsers(user);
+            logger.LogInformation($"{user.ChatId} user removed from the db");
+            await SendTextMessageNoReplyAsync(chatId, "You have successfully unsubscribed!");
         }
 
         private async Task ExecuteFuelcostCommand(long chatId, string args)
@@ -488,7 +514,7 @@ namespace TelegramBot.TestBot.Service
             {
                 var filePath = await LoremPicsumApi.DownloadRandomImage();
                 using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-                await botClient.SendDocumentAsync(chatId, new InputOnlineFile(fs, filePath));
+                await bot.SendDocumentAsync(chatId, new InputOnlineFile(fs, filePath));
             }
             catch (Exception ex)
             {
@@ -499,7 +525,7 @@ namespace TelegramBot.TestBot.Service
 
         private async Task SendTextMessageAsync(long chatId, int messageId, string message)
         {
-            var msg = await botClient.SendTextMessageAsync(
+            var msg = await bot.SendTextMessageAsync(
                     chatId: chatId,
                     text: message,
                     parseMode: ParseMode.Html,
@@ -513,7 +539,7 @@ namespace TelegramBot.TestBot.Service
 
         private async Task SendTextMessageNoReplyAsync(long chatId, string message, bool sendMessageSilently = false)
         {
-            var msg = await botClient.SendTextMessageAsync(
+            var msg = await bot.SendTextMessageAsync(
                     chatId: chatId,
                     text: message,
                     parseMode: ParseMode.Html,
@@ -528,14 +554,15 @@ namespace TelegramBot.TestBot.Service
             string fileName = Path.GetFileName(filePath);
             using var sr = File.Open(filePath, FileMode.Open);
             var doc = new InputOnlineFile(sr, fileName);
-            var task = sendAsPhoto ? await botClient.SendPhotoAsync(chatId, doc, fileName)
-                                   : await botClient.SendDocumentAsync(chatId, doc);
+            var task = sendAsPhoto ? await bot.SendPhotoAsync(chatId, doc, fileName)
+                                   : await bot.SendDocumentAsync(chatId, doc);
+
             logger.LogInformation($"'{fileName}' file sent.");
         }
 
         private string GetBotUptime()
         {
-            var uptime = DateTime.UtcNow - botStartedDateUtc;
+            var uptime = DateTime.UtcNow - clientStartedDateUtc;
             var proc = Process.GetCurrentProcess();
 
             return $"TelegramBot <pre>v{GitVersionInformation.InformationalVersion}</pre>\n" +

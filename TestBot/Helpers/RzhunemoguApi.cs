@@ -4,16 +4,17 @@ namespace TelegramBot.TestBot.Helpers
     using System.IO;
     using System.Text;
     using System.Threading.Tasks;
+    using System.Xml.Serialization;
     using TelegramBot.TestBot.Models;
 
     public class RzhunemoguApi
     {
-        private static readonly Random Rnd = new Random();
+        private static readonly Random Rng = new Random();
 
         public static async Task<RzhunemoguXml?> DownloadRandomJoke()
         {
             // append random parameter from argument list to the base request string
-            string requestUri = AppSettings.RzhunemoguApiBaseUrl + AppSettings.RzhunemoguApiArguments[Rnd.Next(AppSettings.RzhunemoguApiArguments.Count)];
+            string requestUri = AppSettings.RzhunemoguApiBaseUrl + AppSettings.RzhunemoguApiArguments[Rng.Next(AppSettings.RzhunemoguApiArguments.Count)];
             using var response = await ApiHttpClient.Client.GetAsync(requestUri);
 
             if (response.IsSuccessStatusCode)
@@ -26,7 +27,7 @@ namespace TelegramBot.TestBot.Helpers
                 string xml = sr.ReadToEnd();
 
                 // deserialize received xml
-                var xmlObj = XmlUtils.XmlDeserializeFromString<RzhunemoguXml>(xml);
+                var xmlObj = XmlDeserializeFromString<RzhunemoguXml>(xml);
 
                 return xmlObj;
             }
@@ -34,6 +35,24 @@ namespace TelegramBot.TestBot.Helpers
             {
                 throw new Exception(response.ReasonPhrase);
             }
+        }
+
+        private static string XmlSerializeToString(object objectInstance)
+        {
+            var serializer = new XmlSerializer(objectInstance.GetType());
+            var sb = new StringBuilder();
+            using var writer = new StringWriter(sb);
+            serializer.Serialize(writer, objectInstance);
+
+            return sb.ToString();
+        }
+
+        private static T? XmlDeserializeFromString<T>(string objectData)
+        {
+            var serializer = new XmlSerializer(typeof(T));
+            using var reader = new StringReader(objectData);
+
+            return (T?)serializer.Deserialize(reader);
         }
     }
 }
